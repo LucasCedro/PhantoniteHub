@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HUB · Phantonite</title>
+  <link rel="stylesheet" href="css/hunter.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+</head>
+<body>
+  <div class="guide">
+    <aside class="rail">
+      <header class="rail-top">
+        <a href="index.html" class="rail-brand-link" title="Home">
+          <img src="assets/avatar.jpg" alt="" width="32" height="32" />
+          <div class="rail-brand-text">
+            <strong>Phantonite</strong>
+            <span>HUB</span>
+          </div>
+        </a>
+      </header>
+
+      <nav class="rail-nav" aria-label="Principal">
+        <a class="rail-link" href="index.html" title="Home">
+          <kbd>⌂</kbd><span>Home</span>
+        </a>
+        <button type="button" class="rail-link" data-back title="Backspace">
+          <kbd>⌫</kbd><span>Voltar</span>
+        </button>
+        <button type="button" class="rail-link" data-ports title="P">
+          <kbd>P</kbd><span>Portas</span>
+        </button>
+        <button type="button" class="rail-link rail-link-accent" data-params-open title="O">
+          <kbd>O</kbd><span>Parâmetros</span>
+        </button>
+      </nav>
+
+      <section class="rail-trail">
+        <div class="rail-label">path</div>
+        <ol class="trail-list" data-crumb></ol>
+      </section>
+
+      <footer class="rail-foot">
+        <button type="button" class="rail-export" data-copy-exports title="E">
+          <kbd>E</kbd> Exports → Kali
+        </button>
+        <div class="rail-tools">
+          <button type="button" data-help-toggle title="Atalhos">?</button>
+          <button type="button" data-compact title="Densidade">Aa</button>
+          <button type="button" data-reset title="Zerar trilha">↺</button>
+        </div>
+      </footer>
+    </aside>
+
+    <main class="stage">
+      <button type="button" class="params-chip" data-params-open>
+        <span data-chip-summary>IP / TARGET / LHOST — clica pra editar parâmetros</span>
+        <span class="params-chip-go">abrir →</span>
+      </button>
+
+      <p class="node-kicker" data-phase>Briefing</p>
+      <h1 data-title>…</h1>
+      <div class="say" data-say></div>
+      <div data-blocks></div>
+      <h2 class="node-kicker" style="margin-top:1.5rem">Próximo passo</h2>
+      <div class="choices" data-choices></div>
+    </main>
+
+    <aside class="map">
+      <h3>Árvore</h3>
+      <div data-mini></div>
+      <div class="notes">
+        <h3>Notas do engajamento</h3>
+        <textarea data-notes placeholder="users, paths, hipóteses… salva sozinho"></textarea>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Parâmetros drawer -->
+  <div class="params-backdrop" data-params-close hidden></div>
+  <aside class="params-drawer" data-params-drawer hidden aria-label="Parâmetros do engajamento">
+    <header class="params-head">
+      <div class="params-head-main">
+        <h2>&gt; PARAMS.CFG</h2>
+        <span class="params-head-note">campos → hidratam a tela · E = exports kali</span>
+      </div>
+      <button type="button" class="params-x" data-params-close aria-label="Fechar">X</button>
+    </header>
+
+    <div class="params-body">
+      <section class="params-section">
+        <h3>[ alvo / callback ]</h3>
+        <div class="params-grid cols-3">
+          <label class="field">
+            <span class="field-name">IP <button type="button" class="tip" data-tip="IP do alvo. Substitui $IP (nmap, hydra, msf RHOSTS…).">?</button></span>
+            <input data-field="ip" placeholder="10.66.x.x" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">TARGET <button type="button" class="tip" data-tip="URL da app. Vazio = http://IP. Usado em gobuster/curl/wfuzz.">?</button></span>
+            <input data-field="target" placeholder="http://IP" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">DOMAIN <button type="button" class="tip" data-tip="Domínio / AD realm. Substitui $DOMAIN (subfinder, GetNPUsers, certipy…).">?</button></span>
+            <input data-field="domain" placeholder="corp.local" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">LHOST <button type="button" class="tip" data-tip="Teu IP (tun0/VPN). Callback do reverse / msf LHOST.">?</button></span>
+            <input data-field="lhost" placeholder="tun0" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">LPORT <button type="button" class="tip" data-tip="Porta do listener (rlwrap nc). Default 443; fallback 4444.">?</button></span>
+            <input data-field="lport" placeholder="443" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">RPORT <button type="button" class="tip" data-tip="Porta do serviço no alvo (445, 8080, 1234…).">?</button></span>
+            <input data-field="rport" placeholder="80/445/1234" spellcheck="false" />
+          </label>
+        </div>
+      </section>
+
+      <section class="params-section">
+        <h3>[ wordlists / users ]</h3>
+        <div class="params-grid cols-2">
+          <label class="field">
+            <span class="field-name">WORDLIST <button type="button" class="tip" data-tip="Dirs/files pro gobuster.">?</button></span>
+            <input data-field="wordlist" placeholder="/usr/share/wordlists/dirb/common.txt" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">WORDLIST_PASS <button type="button" class="tip" data-tip="Senhas (hydra/john). rockyou default.">?</button></span>
+            <input data-field="wordlist_pass" placeholder="/usr/share/wordlists/rockyou.txt" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">WORDLIST_PARAMS <button type="button" class="tip" data-tip="Nomes de params pro wfuzz.">?</button></span>
+            <input data-field="wordlist_params" placeholder="seclists/.../burp-parameter-names.txt" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">USERS <button type="button" class="tip" data-tip="Arquivo de users pro hydra (-L).">?</button></span>
+            <input data-field="users" placeholder="users.txt" spellcheck="false" />
+          </label>
+        </div>
+      </section>
+
+      <section class="params-section">
+        <h3>[ tools ]</h3>
+        <div class="params-grid cols-3">
+          <label class="field">
+            <span class="field-name">NMAP_MINRATE <button type="button" class="tip" data-tip="--min-rate no scan amplo.">?</button></span>
+            <input data-field="nmap_minrate" placeholder="2000" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">NMAP_EXTRA <button type="button" class="tip" data-tip="Flags extras (ex: -Pn).">?</button></span>
+            <input data-field="nmap_extra" placeholder="-Pn" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">HYDRA_T <button type="button" class="tip" data-tip="Threads hydra (-t). Baixo em RDP/prod.">?</button></span>
+            <input data-field="hydra_t" placeholder="4" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">HYDRA_FAIL <button type="button" class="tip" data-tip="String F= do form login (Burp).">?</button></span>
+            <input data-field="hydra_fail" placeholder="Invalid" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">SQLMAP_PARAM <button type="button" class="tip" data-tip="Param vulnerável (-p).">?</button></span>
+            <input data-field="sqlmap_param" placeholder="email" spellcheck="false" />
+          </label>
+          <label class="field wide">
+            <span class="field-name">SQLMAP_OPTS <button type="button" class="tip" data-tip="Flags sqlmap. level/risk altos = mais ruído.">?</button></span>
+            <input data-field="sqlmap_opts" placeholder="--batch --level=5 --risk=2" spellcheck="false" />
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <footer class="params-foot">
+      <button type="button" class="params-act" data-copy-exports title="E">[E] exports</button>
+      <button type="button" class="params-act" data-params-reset>[reset]</button>
+      <button type="button" class="params-act params-act-mute" data-params-close>[close]</button>
+    </footer>
+  </aside>
+
+  <div class="help-panel" data-help hidden>
+    <header class="help-head">
+      <h3>Atalhos</h3>
+      <button type="button" class="btn btn-sm" data-help-close>Fechar</button>
+    </header>
+    <dl>
+      <dt>⌂</dt><dd>Home (logo ou nav)</dd>
+      <dt>1–9</dt><dd>Escolher opção</dd>
+      <dt>Backspace</dt><dd>Voltar</dd>
+      <dt>P</dt><dd>Mapa de portas</dd>
+      <dt>O</dt><dd>Abrir parâmetros</dd>
+      <dt>E</dt><dd>Exports → Kali</dd>
+      <dt>?</dt><dd>Abrir / fechar atalhos</dd>
+      <dt>Esc</dt><dd>Fechar painéis</dd>
+    </dl>
+  </div>
+
+  <div class="toast" data-toast role="status"></div>
+
+  <script src="data/playbook.js"></script>
+  <script src="data/playbook-extra.js"></script>
+  <script src="js/guide.js"></script>
+</body>
+</html>
