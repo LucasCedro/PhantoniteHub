@@ -10,6 +10,10 @@
   const SCALE = 10; // 16*10 = 160 canvas
   const ACTION_MS = { feed: 4500, sleep: 7000, play: 5500 };
 
+  /** cache in-memory pra não martelar localStorage a cada frame */
+  let memState = null;
+  let memAt = 0;
+
   const PAL = [
     null,
     "#0a0a0a",
@@ -71,6 +75,7 @@
   };
 
   const GATE_CARES = {
+    // legado (soma) — UI / migração; o gate real é GATE_CARE_REQ
     egg: 1,
     larva: 3,
     pupa: 4,
@@ -80,6 +85,21 @@
     alfa: 8,
     elder: 10,
   };
+
+  /** Cares distribuídos: late-game não vira “soma incidental” enquanto espera o tempo. */
+  const GATE_CARE_REQ = {
+    egg: { feed: 1, sleep: 0, play: 0 },
+    larva: { feed: 1, sleep: 1, play: 1 },
+    pupa: { feed: 2, sleep: 1, play: 1 },
+    kid: { feed: 2, sleep: 2, play: 1 },
+    teen: { feed: 2, sleep: 2, play: 2 },
+    adult: { feed: 3, sleep: 2, play: 2 },
+    alfa: { feed: 3, sleep: 3, play: 2 },
+    elder: { feed: 4, sleep: 3, play: 3 },
+  };
+
+  const RECOVER_MS = 2.5 * 60 * 1000; // convalescença pós-revive
+  const SCAR_MISTAKES = 3; // Guru cicatrizado se careMistakes >= isto
 
   /**
    * Decay: pts por minuto na escala 0–100.
@@ -132,8 +152,123 @@
 
   // Ações ≈ +1 coração Gen1
   const ACT = { feed: HEART, sleep: HEART + 5, play: HEART };
+  /** Só conta como cuidado se a barra alvo estiver ao menos 1♥ abaixo do max. */
+  const CARE_NEED_AT_OR_BELOW = 100 - HEART; // 75
   const CARE_MISTAKE_MS = 12 * 60 * 1000; // 12 min no zero → +1 erro
   const DEATH_ZERO_MS = 40 * 60 * 1000;   // 40 min no zero (exceto ovo/larva)
+
+  function emptyCaresBy() {
+    return { feed: 0, sleep: 0, play: 0 };
+  }
+
+  function normalizeCares(state) {
+    if (!state.caresBy || typeof state.caresBy !== "object") {
+      state.caresBy = emptyCaresBy();
+    }
+    state.caresBy.feed = state.caresBy.feed || 0;
+    state.caresBy.sleep = state.caresBy.sleep || 0;
+    state.caresBy.play = state.caresBy.play || 0;
+    state.cares =
+      state.caresBy.feed + state.caresBy.sleep + state.caresBy.play;
+  }
+
+  function caresMet(state) {
+    const need = GATE_CARE_REQ[state.stage];
+    if (!need) return true;
+    normalizeCares(state);
+    const by = state.caresBy;
+    return (
+      by.feed >= need.feed &&
+      by.sleep >= need.sleep &&
+      by.play >= need.play
+    );
+  }
+
+  function caresMissingParts(state) {
+    const need = GATE_CARE_REQ[state.stage];
+    if (!need) return [];
+    normalizeCares(state);
+    const by = state.caresBy;
+    const parts = [];
+    if (by.feed < need.feed) parts.push(`comer×${need.feed - by.feed}`);
+    if (by.sleep < need.sleep) parts.push(`dormir×${need.sleep - by.sleep}`);
+    if (by.play < need.play) parts.push(`brincar×${need.play - by.play}`);
+    return parts;
+  }
+
+  function isScarredGuru(state) {
+    return state.stage === "guru" && (state.careMistakes || 0) >= SCAR_MISTAKES;
+  }
+
+  function guruAuraFrom(grid) {
+    const g = cloneGrid(grid);
+    // halo ciano — ápice sereno (mais denso que idle comum)
+    const sparks = [
+      [0, 2],
+      [15, 2],
+      [0, 8],
+      [15, 8],
+      [2, 0],
+      [13, 0],
+      [7, 0],
+      [8, 0],
+      [1, 14],
+      [14, 14],
+    ];
+    for (const [x, y] of sparks) {
+      if (y >= 0 && y < PX && x >= 0 && x < PX && !g[y][x]) g[y][x] = 4;
+    }
+    return g;
+  }
+
+  function guruScarFrom(grid) {
+    const g = lowStatFrom(grid);
+    for (let y = 3; y < 7; y++) {
+      for (let x = 10; x < 14; x++) {
+        if (g[y][x] === 6) {
+          g[y][x] = 7;
+          return g;
+        }
+      }
+    }
+    if (!g[2][13]) g[2][13] = 7;
+    return g;
+  }
+
+  /** Elder: poeira cinza nos pés — velho, não guru. */
+  function elderDustFrom(grid) {
+    const g = cloneGrid(grid);
+    const dust = [
+      [3, 14],
+      [5, 15],
+      [10, 15],
+      [12, 14],
+      [7, 15],
+    ];
+    for (const [x, y] of dust) {
+      if (!g[y][x]) g[y][x] = 6;
+    }
+    return g;
+  }
+
+  /** Convalescença ≠ hibernação: mesma silhueta de casulo, paleta âmbar (não ciano). */
+  function recoverFramesFrom(frames) {
+    return frames.map((grid) => {
+      const g = cloneGrid(grid);
+      for (let y = 0; y < PX; y++) {
+        for (let x = 0; x < PX; x++) {
+          if (g[y][x] === 4) g[y][x] = 7;
+        }
+      }
+      return g;
+    });
+  }
+
+  let RECOVER_FRAMES = null;
+  function getRecoverFrames() {
+    if (!RECOVER_FRAMES) RECOVER_FRAMES = recoverFramesFrom(HIBERNATE_S);
+    return RECOVER_FRAMES;
+  }
 
   function scaledMs(ms) {
     return ms / TIME_SCALE;
@@ -1415,8 +1550,11 @@
             o.discovered = o.discovered ?? true;
             o.stageEnteredAt = o.stageEnteredAt || o.bornAt || Date.now();
             o.cares = o.cares || 0;
+            o.caresBy = o.caresBy || { feed: 0, sleep: 0, play: 0 };
             o.careMistakes = o.careMistakes || 0;
             o.neglectSince = o.neglectSince ?? null;
+            o.guruUnlocked = !!o.guruUnlocked || o.stage === "guru";
+            o.recovering = !!o.recovering;
             o.hibernating = !!o.hibernating;
             localStorage.setItem(STORAGE, JSON.stringify(o));
             raw = localStorage.getItem(STORAGE);
@@ -1424,12 +1562,23 @@
           }
         }
       }
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const s = JSON.parse(raw);
+        normalizeCares(s);
+        s.guruUnlocked = !!s.guruUnlocked || s.stage === "guru";
+        s.recovering = !!s.recovering;
+        memState = s;
+        memAt = now();
+        return s;
+      }
     } catch (_) {}
     return null;
   }
 
   function save(state) {
+    normalizeCares(state);
+    memState = state;
+    memAt = now();
     localStorage.setItem(STORAGE, JSON.stringify(state));
   }
 
@@ -1446,6 +1595,7 @@
       energy: 100,
       mood: 100,
       cares: 0,
+      caresBy: emptyCaresBy(),
       careMistakes: 0,
       neglectSince: null,
       dead: false,
@@ -1457,6 +1607,9 @@
       hibernateUntil: 0,
       hibernateFrom: null,
       hibernateTo: null,
+      recovering: false,
+      recoverUntil: 0,
+      guruUnlocked: false,
     };
   }
 
@@ -1474,6 +1627,8 @@
     state.hibernateTo = to;
     state.hibernateUntil = now() + hibernateMs(from);
     state.lastTick = now();
+    state.recovering = false;
+    state.recoverUntil = 0;
     state.neglectSince = null;
   }
 
@@ -1486,22 +1641,23 @@
     if (to) {
       state.stage = to;
       state.stageEnteredAt = now();
+      state.caresBy = emptyCaresBy();
       state.cares = 0;
       state.hunger = clamp(Math.max(state.hunger, 60));
       state.energy = clamp(Math.max(state.energy, 60));
       state.mood = clamp(Math.max(state.mood, 60));
+      if (to === "guru") state.guruUnlocked = true;
     }
     state.lastTick = now();
   }
 
   /** Se gates ok → começa hibernação (não pula forma direto). */
   function tryStartEvolution(state) {
-    if (state.dead || state.hibernating) return;
+    if (state.dead || state.hibernating || state.recovering) return;
     const to = nextStage(state.stage);
     if (!to) return; // guru
-    const needCares = GATE_CARES[state.stage] ?? 99;
     const needAge = scaledMs(GATE_MIN_MS[state.stage] ?? Infinity);
-    if (state.cares < needCares) return;
+    if (!caresMet(state)) return;
     if (stageAgeMs(state) < needAge) return;
     beginHibernate(state, state.stage, to);
   }
@@ -1540,6 +1696,15 @@
     if (!state || state.dead) return state;
     const t = now();
 
+    if (state.recovering) {
+      if (t >= (state.recoverUntil || 0)) {
+        state.recovering = false;
+        state.recoverUntil = 0;
+      }
+      state.lastTick = t;
+      return state;
+    }
+
     if (state.hibernating) {
       if (t >= (state.hibernateUntil || 0)) completeHibernate(state);
       state.lastTick = t;
@@ -1562,6 +1727,11 @@
 
   function nextEvoHint(state) {
     if (state.dead) return "";
+    if (state.recovering) {
+      const left = Math.max(0, (state.recoverUntil || 0) - now());
+      const s = Math.ceil(left / 1000);
+      return `Convalescença · ${s}s`;
+    }
     if (state.hibernating) {
       const left = Math.max(0, (state.hibernateUntil || 0) - now());
       const m = Math.ceil(left / 60000);
@@ -1570,22 +1740,33 @@
       const to = STAGE_LABEL[state.hibernateTo] || "?";
       const fase = PHASE_NUM[state.hibernateFrom] || 1;
       const tier = hibernateTier(state.hibernateFrom);
-      if (left > 60000) return `Hibernando ${from}→${to} · ~${m} min · casulo ${tier} (fase×2.5=${fase * 2.5})`;
-      return `Hibernando ${from}→${to} · casulo ${tier} · ${m > 0 ? m + "min " : ""}${s}s`;
+      const total = hibernateMs(state.hibernateFrom || state.stage);
+      const pct = total ? Math.min(100, Math.round(100 - (left / total) * 100)) : 100;
+      if (left > 60000) {
+        return `Hibernando ${from}→${to} · ${pct}% · ~${m} min · casulo ${tier}`;
+      }
+      return `Hibernando ${from}→${to} · ${pct}% · casulo ${tier} · ${m > 0 ? m + "min " : ""}${s}s`;
     }
-    if (state.stage === "guru") return "Forma final · Guru";
+    if (state.stage === "guru") {
+      return isScarredGuru(state)
+        ? "Forma final · Guru cicatrizado"
+        : "Forma final · Guru sereno · bitmite no den";
+    }
     const to = nextStage(state.stage);
     const toLabel = STAGE_LABEL[to] || to;
-    const needC = GATE_CARES[state.stage] ?? 0;
     const needA = scaledMs(GATE_MIN_MS[state.stage] ?? 0);
     const leftA = Math.max(0, needA - stageAgeMs(state));
     const m = Math.ceil(leftA / 60000);
-    const parts = [];
-    if (state.cares < needC) parts.push(`mais ${needC - state.cares} cuidado(s)`);
-    if (leftA > 0) parts.push(`espera ${m} min na forma`);
+    const parts = caresMissingParts(state);
+    if (leftA > 0) parts.push(`espera ${m} min`);
     if (!parts.length) return `Pronto · vai hibernar → ${toLabel}`;
-    const mistakes = state.careMistakes ? ` · erros ${state.careMistakes}` : "";
-    return `Próx: ${toLabel} · ${parts.join(" · ")}${mistakes}`;
+    const scar =
+      state.careMistakes >= SCAR_MISTAKES
+        ? ` · cicatrizes ${state.careMistakes}`
+        : state.careMistakes
+          ? ` · erros ${state.careMistakes}`
+          : "";
+    return `Próx: ${toLabel} · ${parts.join(" · ")}${scar}`;
   }
 
   function ensure() {
@@ -1622,6 +1803,65 @@
   let feedFlashUntil = 0;
   let blinkUntil = 0;
   let nextBlinkAt = 0;
+
+  const SHELL_HTML = `
+<button type="button" class="pet-chip" data-pet-chip hidden title="Maximizar tamago">●</button>
+<aside class="pet-dock" data-pet-dock hidden aria-label="Tamago">
+  <header class="pet-dock-head" data-pet-drag>
+    <div class="pet-dock-titles">
+      <span class="pet-badge">TAMAGO · 8-BIT</span>
+      <button type="button" class="pet-name-btn" data-pet-name-btn title="Clique pra renomear">
+        <strong data-pet-name>BITMITE</strong>
+        <span class="pet-name-edit">✎</span>
+      </button>
+      <form class="pet-rename" data-pet-rename hidden>
+        <input data-pet-rename-input maxlength="12" spellcheck="false" aria-label="Novo nome" />
+      </form>
+    </div>
+    <button type="button" class="pet-x" data-pet-close aria-label="Minimizar" title="Minimizar">_</button>
+  </header>
+  <div class="pet-screen">
+    <canvas class="pet-canvas" data-pet-canvas width="160" height="160" aria-hidden="true"></canvas>
+    <div class="pet-meta">
+      <p class="pet-form" data-pet-form>Forma: Ovo</p>
+      <p class="pet-age" data-pet-age>Idade: 0 min</p>
+    </div>
+  </div>
+  <div class="pet-bars">
+    <div class="pet-bar">
+      <span class="pet-bar-label">Fome</span>
+      <div class="pet-bar-track"><span data-pet-hunger></span></div>
+    </div>
+    <div class="pet-bar">
+      <span class="pet-bar-label">Energia</span>
+      <div class="pet-bar-track"><span data-pet-energy></span></div>
+    </div>
+    <div class="pet-bar">
+      <span class="pet-bar-label">Humor</span>
+      <div class="pet-bar-track"><span data-pet-mood></span></div>
+    </div>
+  </div>
+  <p class="pet-status" data-pet-status>Stand-by</p>
+  <div class="pet-progress" data-pet-progress hidden>
+    <div class="pet-progress-track"><span data-pet-progress-bar></span></div>
+  </div>
+  <div class="pet-actions" data-pet-actions>
+    <button type="button" class="pet-btn" data-pet-feed>Comer</button>
+    <button type="button" class="pet-btn" data-pet-sleep>Dormir</button>
+    <button type="button" class="pet-btn" data-pet-play>Brincar</button>
+  </div>
+  <div class="pet-actions" data-pet-dead-actions hidden>
+    <button type="button" class="pet-btn pet-btn-revive" data-pet-revive>Reviver</button>
+    <button type="button" class="pet-btn" data-pet-close>Esconder</button>
+  </div>
+</aside>`;
+
+  function ensureShell() {
+    if (document.querySelector("[data-pet-dock]")) return;
+    const box = document.createElement("div");
+    box.innerHTML = SHELL_HTML.trim();
+    while (box.firstChild) document.body.appendChild(box.firstChild);
+  }
 
   function bind() {
     els = {
@@ -1674,9 +1914,13 @@
 
   function statusText(state) {
     if (state.dead) return "Sem sinal… toque em Reviver";
+    if (state.recovering) return "Convalescença… aguarda";
     if (state.hibernating) {
       const to = STAGE_LABEL[state.hibernateTo] || "…";
-      return `Hibernando → ${to}`;
+      const left = Math.max(0, (state.hibernateUntil || 0) - now());
+      const total = hibernateMs(state.hibernateFrom || state.stage);
+      const pct = total ? Math.min(100, Math.round(100 - (left / total) * 100)) : 100;
+      return `Hibernando → ${to} · ${pct}%`;
     }
     if (anim === "feed") return "Comendo…";
     if (anim === "sleep") return "Dormindo… zzz";
@@ -1685,6 +1929,9 @@
     if (state.hunger < 28) return "Com fome!";
     if (state.energy < 28) return "Com sono…";
     if (state.mood < 28) return "Entediado";
+    if (state.stage === "guru") {
+      return isScarredGuru(state) ? "Guru cicatrizado · stand-by" : "Guru sereno · stand-by";
+    }
     return "Stand-by";
   }
 
@@ -1776,6 +2023,22 @@
     return state.hunger < 28 || state.mood < 28;
   }
 
+  /** Cuidado de verdade: barra precisa estar faltando ≥1 coração (ovo sempre “precisa” comer). */
+  function careNeeded(kind, state) {
+    if (state.stage === "egg") return kind === "feed";
+    if (kind === "feed") return state.hunger <= CARE_NEED_AT_OR_BELOW;
+    if (kind === "sleep") return state.energy <= CARE_NEED_AT_OR_BELOW;
+    if (kind === "play") return state.mood <= CARE_NEED_AT_OR_BELOW;
+    return false;
+  }
+
+  function careRefuseMsg(kind) {
+    if (kind === "feed") return "já tá cheio — espera a fome baixar";
+    if (kind === "sleep") return "já tá descansado — espera a energia baixar";
+    if (kind === "play") return "já tá feliz — espera o humor baixar";
+    return "não precisa disso agora";
+  }
+
   function drawFrame(grid) {
     if (!ctx || !els.canvas) return;
     const w = els.canvas.width;
@@ -1802,6 +2065,7 @@
 
   function pickFrames(state) {
     if (state.dead) return [deadGridFor(state.stage)];
+    if (state.recovering) return getRecoverFrames();
     if (state.hibernating) {
       const from = state.hibernateFrom || state.stage;
       return HIBERNATE_BY_TIER[hibernateTier(from)] || HIBERNATE_S;
@@ -1810,14 +2074,25 @@
     if (anim === "feed") return packS.feed;
     if (anim === "sleep") return packS.sleep;
     if (anim === "play") return packS.play;
-    if (isLowStat(state)) return packS.idle.map(lowStatFrom);
-    return packS.idle;
+    let idle = packS.idle;
+    if (state.stage === "guru") {
+      idle = isScarredGuru(state)
+        ? idle.map(guruScarFrom)
+        : idle.map(guruAuraFrom);
+    } else if (state.stage === "elder") {
+      idle = isLowStat(state)
+        ? idle.map((f) => elderDustFrom(lowStatFrom(f)))
+        : idle.map(elderDustFrom);
+    } else if (isLowStat(state)) {
+      idle = idle.map(lowStatFrom);
+    }
+    return idle;
   }
 
   let lastDecayHud = 0;
 
   function paint(ts) {
-    const state = load();
+    const state = memState || load();
     if (!state || !els?.dock) {
       raf = requestAnimationFrame(paint);
       return;
@@ -1850,6 +2125,7 @@
       if (pendingBoost) {
         const s = ensure();
         const kindDone = pendingBoost.kind;
+        const counts = !!pendingBoost.countsAsCare;
         if (!s.dead && !s.hibernating) {
           if (kindDone === "feed") {
             s.hunger = clamp(s.hunger + ACT.feed);
@@ -1860,7 +2136,13 @@
             s.mood = clamp(s.mood + ACT.play);
             s.energy = clamp(s.energy - 5);
           }
-          s.cares += 1;
+          if (counts) {
+            normalizeCares(s);
+            const key =
+              kindDone === "feed" ? "feed" : kindDone === "sleep" ? "sleep" : "play";
+            s.caresBy[key] = (s.caresBy[key] || 0) + 1;
+            s.cares = s.caresBy.feed + s.caresBy.sleep + s.caresBy.play;
+          }
           s.lastTick = now();
           // ovo: 1 feed → hibernação → larva
           tryStartEvolution(s);
@@ -1872,9 +2154,15 @@
       }
     }
 
-    // barra de progresso: ação OU hibernação
-    const livePre = load();
-    if (livePre?.hibernating && els.progressBar) {
+    // barra de progresso: ação OU hibernação OU convalescença
+    const livePre = memState || load();
+    if (livePre?.recovering && els.progressBar) {
+      const total = scaledMs(RECOVER_MS);
+      const left = Math.max(0, (livePre.recoverUntil || 0) - now());
+      const pct = total ? 100 - (left / total) * 100 : 100;
+      els.progress?.removeAttribute("hidden");
+      els.progressBar.style.width = `${Math.min(100, pct)}%`;
+    } else if (livePre?.hibernating && els.progressBar) {
       const from = livePre.hibernateFrom || livePre.stage;
       const total = hibernateMs(from);
       const left = Math.max(0, (livePre.hibernateUntil || 0) - now());
@@ -1888,14 +2176,14 @@
       const pct = 100 - (left / total) * 100;
       els.progress?.removeAttribute("hidden");
       els.progressBar.style.width = `${pct}%`;
-    } else if (!isBusy() && livePre && !livePre.hibernating) {
+    } else if (!isBusy() && livePre && !livePre.hibernating && !livePre.recovering) {
       els.progress?.setAttribute("hidden", "");
     }
 
-    const live = load() || state;
+    const live = memState || livePre || state;
     const frames = pickFrames(live);
     let speed = 520;
-    if (live.hibernating) speed = 780;
+    if (live.hibernating || live.recovering) speed = 780;
     else if (anim === "sleep") speed = 700;
     else if (anim === "feed" || anim === "play") speed = 260;
     else if (isLowStat(live) && anim === "idle") speed = 720;
@@ -1948,6 +2236,14 @@
         const from = STAGE_LABEL[state.hibernateFrom] || "?";
         const to = STAGE_LABEL[state.hibernateTo] || "?";
         els.form.textContent = `Hibernação: ${from} → ${to}`;
+      } else if (state.recovering) {
+        els.form.textContent = "Convalescença";
+      } else if (state.stage === "elder") {
+        els.form.textContent = "Forma: Elder · ancião";
+      } else if (state.stage === "guru") {
+        els.form.textContent = isScarredGuru(state)
+          ? "Forma: Guru · cicatrizado"
+          : "Forma: Guru · sereno";
       } else {
         els.form.textContent = `Forma: ${STAGE_LABEL[state.stage] || state.stage}`;
       }
@@ -1961,14 +2257,15 @@
     bar(els.hunger, state.hunger);
     bar(els.energy, state.energy);
     bar(els.mood, state.mood);
-    const lock = state.dead || state.hibernating;
+    const lock = state.dead || state.hibernating || state.recovering;
     els.actions?.toggleAttribute("hidden", lock);
     els.deadActions?.toggleAttribute("hidden", !state.dead);
     els.dock?.classList.toggle("is-dead", state.dead);
     els.dock?.classList.toggle("is-hibernate", !!state.hibernating);
+    els.dock?.classList.toggle("is-recover", !!state.recovering);
     if (els.status) els.status.textContent = statusText(state);
     showChip(state);
-    setBusyButtons((isBusy() || state.hibernating) && !state.dead);
+    setBusyButtons((isBusy() || state.hibernating || state.recovering) && !state.dead);
   }
 
   function showChip(state) {
@@ -1983,14 +2280,27 @@
     }
     els.chip.removeAttribute("hidden");
     const label = state.name || "tamago";
-    if (state.dead) els.chip.textContent = `× ${label}`;
-    else if (state.hibernating) els.chip.textContent = `◐ ${label}`;
-    else if (isLowStat(state)) els.chip.textContent = `! ${label}`;
-    else els.chip.textContent = `● ${label}`;
+    // chip discreto: só inicial + sinal se precisar atenção
+    let mark = "●";
+    if (state.dead) mark = "×";
+    else if (state.recovering) mark = "+";
+    else if (state.hibernating) mark = "◐";
+    else if (isLowStat(state)) mark = "!";
+    els.chip.textContent = mark;
+    els.chip.setAttribute("aria-label", `${label} — maximizar tamago`);
+    els.chip.title = state.dead
+      ? `${label} (morto) — abrir`
+      : state.recovering
+        ? `${label} convalescendo — abrir`
+        : state.hibernating
+          ? `${label} hibernando — abrir`
+          : isLowStat(state)
+            ? `${label} precisa de cuidado`
+            : `${label} — maximizar`;
     els.chip.classList.toggle("is-dead", !!state.dead);
     els.chip.classList.toggle("is-hibernate", !!state.hibernating);
-    els.chip.classList.toggle("is-low", !state.dead && isLowStat(state));
-    els.chip.title = state.dead ? "Abrir tamago (morto)" : "Maximizar tamago";
+    els.chip.classList.toggle("is-recover", !!state.recovering);
+    els.chip.classList.toggle("is-low", !state.dead && !state.recovering && isLowStat(state));
   }
 
   function applyDockPos(state) {
@@ -2075,6 +2385,7 @@
   function startAction(kind) {
     const state = ensure();
     if (state.dead) return { ok: false, msg: "morto — reviva" };
+    if (state.recovering) return { ok: false, msg: "convalescença…" };
     if (state.hibernating) return { ok: false, msg: "hibernando…" };
     if (isBusy()) return { ok: false, msg: "ocupado…" };
     if (state.stage === "egg" && kind !== "feed") {
@@ -2083,6 +2394,12 @@
     applyDecay(state);
     save(state);
 
+    if (!careNeeded(kind, state)) {
+      const msg = careRefuseMsg(kind);
+      if (els.status) els.status.textContent = msg;
+      return { ok: false, msg };
+    }
+
     anim = kind;
     frameIdx = 0;
     lastFrameAt = 0;
@@ -2090,7 +2407,7 @@
     blinkUntil = 0;
     nextBlinkAt = 0;
     busyUntil = now() + (ACTION_MS[kind] || 4000);
-    pendingBoost = { kind };
+    pendingBoost = { kind, countsAsCare: true };
     setBusyButtons(true);
     els.progress?.removeAttribute("hidden");
     if (els.progressBar) els.progressBar.style.width = "0%";
@@ -2110,6 +2427,8 @@
     state.mood = 75;
     state.neglectSince = null;
     state._neglectBuckets = 0;
+    state.recovering = true;
+    state.recoverUntil = now() + scaledMs(RECOVER_MS);
     state.lastTick = now();
     save(state);
     anim = "idle";
@@ -2120,9 +2439,9 @@
     blinkUntil = 0;
     nextBlinkAt = 0;
     setBusyButtons(false);
-    els.progress?.setAttribute("hidden", "");
+    els.progress?.removeAttribute("hidden");
     syncHud();
-    return { ok: true, msg: "revive ok" };
+    return { ok: true, msg: "revive ok · convalescença" };
   }
 
   function rename(name) {
@@ -2222,6 +2541,7 @@
   }
 
   function boot() {
+    ensureShell();
     bind();
     if (!els?.dock) return;
 

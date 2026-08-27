@@ -41,6 +41,36 @@
       .replace(/"/g, "&quot;");
   }
 
+  function bitmiteLine() {
+    const pet = window.PhantonitePet;
+    if (!pet) {
+      plain("bitmite: firmware offline", "term-err");
+      return;
+    }
+    const s = pet.peek?.() || pet.ensure();
+    if (!s?.discovered) {
+      plain("bitmite: no signal");
+      return;
+    }
+    if (!s.guruUnlocked && s.stage !== "guru") {
+      plain("bitmite: locked · chega em Guru pra abrir este canal");
+      return;
+    }
+    const scarred = (s.careMistakes || 0) >= 3;
+    plain("── bitmite uplink ──");
+    plain(
+      scarred
+        ? `${s.name || "BITMITE"} · GURU CICATRIZADO · erros ${s.careMistakes}`
+        : `${s.name || "BITMITE"} · GURU SERENO`
+    );
+    plain(
+      scarred
+        ? "\"sobrevivi às tuas falhas. o lab também.\""
+        : "\"paciência é o melhor exploit. espera o timing.\""
+    );
+    plain("hint: quando a barra pedir, cuida. quando não pedir, lab.");
+  }
+
   function help() {
     plain("comandos:");
     plain("  ./hub.sh     → entra no hub");
@@ -132,13 +162,17 @@
       runTamago(args.length ? args : ["run"]);
       return;
     }
+    if (head === "bitmite" || head === "./bitmite") {
+      bitmiteLine();
+      return;
+    }
     if (head === "cat" && args[0] === "README") {
       plain("guia pessoal. árvore de decisão.");
       plain("abre → escolhe porta → copia cmd → volta pro Kali.");
       return;
     }
     if (head === "whoami") {
-      plain("phantonite");
+      plain("phantonite ee");
       return;
     }
     plain(`command not found: ${head}`, "term-err");

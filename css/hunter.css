@@ -492,6 +492,26 @@ body.pet-dragging .pet-dock { animation: none; }
 .pet-dock.is-hibernate .pet-canvas {
   box-shadow: inset 0 0 0 1px var(--ice-dim), 0 0 12px rgba(0, 212, 255, 0.2);
 }
+.pet-dock.is-hibernate .pet-progress-track span {
+  background: var(--ice);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.45);
+  animation: pet-hib-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pet-hib-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+
+/* convalescença ≠ hibernação (âmbar, não ciano) */
+.pet-dock.is-recover .pet-status { color: #e8a317; }
+.pet-dock.is-recover .pet-canvas {
+  box-shadow: inset 0 0 0 1px #e8a317, 0 0 12px rgba(232, 163, 23, 0.28);
+}
+.pet-dock.is-recover .pet-progress-track span {
+  background: #e8a317;
+  box-shadow: 0 0 8px rgba(232, 163, 23, 0.4);
+  animation: pet-hib-pulse 1.6s ease-in-out infinite;
+}
 
 .pet-progress {
   padding: 0 0.75rem 0.55rem;
@@ -555,37 +575,53 @@ body.pet-dragging .pet-dock { animation: none; }
 .pet-chip {
   position: fixed;
   z-index: 120;
-  right: 1rem;
-  bottom: 1rem;
+  left: 0.55rem;
+  right: auto;
+  bottom: 0.55rem;
   appearance: none;
-  background: #050505;
-  border: 2px solid var(--signal);
-  color: var(--ink);
+  background: rgba(5, 5, 5, 0.72);
+  border: 1px solid #2a2a2a;
+  color: var(--ink-faint);
   font: inherit;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 0.45rem 0.7rem;
+  padding: 0.28rem 0.42rem;
+  min-width: 1.6rem;
   cursor: pointer;
   border-radius: 2px;
-  box-shadow: 4px 4px 0 #000;
+  box-shadow: none;
+  opacity: 0.45;
+  transition: opacity 0.15s var(--ease), border-color 0.15s, color 0.15s;
 }
 .pet-chip[hidden] { display: none !important; }
-.pet-chip:hover { color: var(--signal); border-color: var(--ice); }
-.pet-chip.is-dead { border-color: var(--ink-faint); color: var(--ink-faint); }
+.pet-chip:hover,
+.pet-chip:focus-visible {
+  opacity: 1;
+  color: var(--signal);
+  border-color: var(--signal);
+  outline: none;
+}
+.pet-chip.is-dead { border-color: var(--ink-faint); color: var(--ink-faint); opacity: 0.7; }
 .pet-chip.is-hibernate {
-  border-color: var(--ice);
+  border-color: var(--ice-dim);
   color: var(--ice);
-  box-shadow: 4px 4px 0 #000, 0 0 12px rgba(0, 212, 255, 0.25);
+  opacity: 0.75;
+}
+.pet-chip.is-recover {
+  border-color: #e8a317;
+  color: #e8a317;
+  opacity: 0.85;
 }
 .pet-chip.is-low {
   border-color: #e8a317;
   color: #e8a317;
+  opacity: 0.9;
   animation: pet-chip-pulse 1.4s ease-in-out infinite;
 }
 @keyframes pet-chip-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.4; }
 }
 
 @media (max-width: 720px) {
@@ -603,8 +639,9 @@ body.pet-dragging .pet-dock { animation: none; }
     to   { opacity: 1; transform: translateY(0); }
   }
   .pet-chip {
-    right: 0.65rem;
-    bottom: 0.65rem;
+    left: 0.45rem;
+    right: auto;
+    bottom: 0.45rem;
   }
   .pet-canvas {
     width: 140px;

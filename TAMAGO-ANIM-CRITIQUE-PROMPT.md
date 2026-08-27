@@ -1,239 +1,214 @@
-# Prompt — revisão crítica das animações 8-bit do Bitmite (Tamagotchi)
+# Prompt — diagnóstico completo do minigame Bitmite (Tamagotchi)
 
-> Cole este arquivo inteiro no Claude. Peça diagnóstico crítico, não elogio genérico.
-> Código-fonte de referência no projeto: `js/pet.js` (+ CSS `.pet-*` em `css/hunter.css`).
+> Cole este arquivo inteiro no Claude. Peça diagnóstico crítico do **jogo inteiro**, não elogio genérico.
+> Fontes no repo: `js/pet.js`, `js/den.js`, CSS `.pet-*` em `css/hunter.css`, mount em `index.html` + `guide.html`.
 
 ---
 
 ## Quem você é neste review
 
-Você é um diretor de arte / pixel artist + game feel lead revisando um easter-egg Tamagotchi (Bitmite) embutido num site estático de pentest (Phantonite HUB). O dono **gostou muito** do visual 8-bit atual e quer um olhar crítico: o que está forte, o que está “bonitinho mas raso”, inconsistências entre estágios, e o que elevaria o jogo sem virar um engine de animação.
+Você é um **game designer + systems designer + UX de overlay + pixel/game-feel lead** revisando um easter-egg Tamagotchi (Bitmite) embutido num site estático de pentest (Phantonite HUB).
 
-**Não** reescreva o jogo. Entregue diagnóstico + recomendações priorizadas.
+O pet **não** é o produto principal — o hub de pentest é. O Bitmite tem que:
+1. ser viciante o bastante pra o dono cuidar enquanto faz lab;
+2. não atrapalhar o fluxo de pentest;
+3. carregar lore/carinho (não virar clicker burro).
+
+Já houve uma rodada só de animações. Agora quero o **diagnóstico do minigame completo**: mecânicas, balance, progressão, death/neglect, UX do dock/chip, integração no app, e arte/feel só onde impacta o jogo.
+
+**Não** reescreva o jogo. Entregue diagnóstico + recomendações priorizadas (impacto × esforço).
 
 ---
 
 ## Contexto do produto
 
-- Pet secreto no terminal da home (`tamago run`).
-- Dock lateral arrastável, canvas pixelado, persistência `localStorage`.
-- Cadeia de formas (com hibernação entre cada transição):
-
-```
-ovo → larva → pupa → kid → teen → adulto → alfa → elder → guru
-```
-
-- Ações do jogador: **feed** (comer), **sleep** (dormir), **play** (brincar).
-- Estados especiais: **idle/standby**, **hibernating**, **dead**.
-- Aesthetic do site: garage / Hackers ’95 — preto, vermelho `#e11d2e`, ciano `#00d4ff`.
+- Site estático (HTML/CSS/JS), aesthetic garage / Hackers ’95 — preto, vermelho `#e11d2e`, ciano `#00d4ff`.
+- Home (`index.html`): terminal interativo (`js/den.js`). Easter egg:
+  - `tamago run` → abre/maximiza (não reseta save)
+  - `tamago stop` → minimiza (chip no canto)
+  - `tamago kill` → mata processo + apaga `localStorage`
+  - `tamago status` / `tamago name <nick>`
+- Hub (`guide.html`): árvore de decisão de pentest — **também** carrega `js/pet.js`.
+- `pet.js` **injeta** o DOM do dock+chip se não existir (`ensureShell`) → mesmo pet em todas as telas.
+- Persistência: `localStorage` key `phantonite-tamago-v4` (migra legacy v1–v3).
 
 ---
 
-## Arquitetura técnica das animações (como está hoje)
+## Loop do jogador (como deveria sentir)
 
-### Canvas / raster
+1. Descobre `tamago run` na home (não está no `help` público).
+2. Cuida do Bitmite (comer / dormir / brincar).
+3. Minimiza com `_` → chip discreto no canto (também no guide).
+4. Continua o pentest; de vez em quando abre o chip pra cuidar.
+5. Gates de tempo + cuidados reais → hibernação → próxima forma.
+6. Negligência gera care mistakes; zero prolongado mata (exceto ovo/larva).
+7. Forma final: Guru. Morte → Reviver (não wipe; wipe só com `kill`).
 
-| Param | Valor |
-|--------|--------|
-| Grid lógico | **16×16** pixels |
-| Escala na tela | **×10** → canvas 160×160 |
-| Smoothing | `imageSmoothingEnabled = false` + CSS `image-rendering: pixelated` |
-| Fundo do frame | `#050505` fillRect a cada frame |
-| Loop | `requestAnimationFrame(paint)` contínuo enquanto o dock está aberto |
+---
 
-### Paleta (índices 0–8 em `PAL`)
+## Sistemas — estado atual (spec do código)
+
+### Cadeia de evolução (9 formas)
 
 ```
-0 = transparente (null)
-1 = #0a0a0a   (outline / sombra)
-2 = #e11d2e   (vermelho brand)
-3 = #8f121d   (vermelho escuro)
-4 = #00d4ff   (ciano / signal / Zzz)
-5 = #f2f2f2   (branco / olhos)
-6 = #5a5a5a   (cinza — sleep / dead)
-7 = #e8a317   (âmbar — snack / item)
-8 = #1a0508   (quase preto quente)
+egg → larva → pupa → kid → teen → adult → alfa → elder → guru
 ```
 
-### Formato do frame
+Entre cada transição: **hibernação** (sem decay, ações bloqueadas).
+Duração hibernação: `fase × 2.5 minutos` (fase 1..9).
+Casulos visuais por faixa: **S** (egg–pupa), **M** (kid–adult), **L** (alfa–guru).
 
-Cada frame é um array de **16 strings de 16 dígitos**. Helper:
+### Gates pra evoluir (precisa dos dois)
+
+| Stage | cares mínimos | tempo mínimo na forma |
+|-------|---------------|------------------------|
+| egg | 1 | 0 |
+| larva | 3 | 20 min |
+| pupa | 4 | 45 min |
+| kid | 5 | 3 h |
+| teen | 6 | 6 h |
+| adult | 7 | 8 h |
+| alfa | 8 | 10 h |
+| elder | 10 | 12 h |
+| guru | — | forma final |
+
+`TIME_SCALE = 1` (tunable; 2 = tudo 2× mais rápido).
+
+### Stats
+
+- Escala 0–100. Metafora Gen1: **1 coração ≈ 25 pts** (`HEART = 25`), max 4♥.
+- Barras: **hunger**, **energy**, **mood**.
+- Ações:
+  - feed → +25 hunger (`ACTION_MS` 4500)
+  - sleep → +30 energy (7000)
+  - play → +25 mood, −5 energy (5500)
+- Boost aplica **só no fim** da animação (`pendingBoost`).
+
+### Anti-cheat de cuidado (recente)
+
+Cuidado **só é aceito** se a barra alvo estiver `≤ 75` (falta ≥1♥):
 
 ```js
-function F(rows) {
-  return rows.map((r) =>
-    r.replace(/\s/g, "").split("").map((c) => parseInt(c, 10) || 0)
-  );
-}
+CARE_NEED_AT_OR_BELOW = 100 - HEART // 75
 ```
 
-Sprites vivem em constantes `*_IDLE / *_EAT / *_SLEEP / *_PLAY` e são empacotadas:
+- Se cheio: recusa com status (`"já tá cheio — espera a fome baixar"`, etc.).
+- `cares++` só quando a ação era necessária.
+- **Exceção:** ovo sempre pode `feed` (pra nascer), mesmo com hunger 100 / decay 0 no egg.
 
-```js
-const pack = (idle, feed, sleep, play) => ({ idle, feed, sleep, play });
+### Decay por estágio (pts/min)
 
-const SPRITES = {
-  egg:   pack(EGG_IDLE, EGG_FEED, EGG_IDLE, EGG_IDLE), // sleep/play = idle
-  larva: pack(LARVA_IDLE, LARVA_EAT, LARVA_SLEEP, LARVA_PLAY),
-  pupa:  pack(...),
-  kid:   pack(...),
-  teen:  pack(...),
-  adult: pack(...),
-  alfa:  pack(...),
-  elder: pack(...),
-  guru:  pack(...),
-};
-```
+| Stage | hunger | mood | notas |
+|-------|--------|------|-------|
+| egg | 0 | 0 | tutorial estático |
+| larva | 25/5 = 5.0 | 25/6 ≈ 4.2 | bebê Gen1 (1♥ / 5–6 min) |
+| pupa | 25/25 = 1.0 | ~0.9 | |
+| kid | 25/60 ≈ 0.42 | ~0.36 | 1♥ / ~1h |
+| teen | 25/90 ≈ 0.28 | 0.25 | 1♥ / ~1h30 |
+| adult+ | ≤ 25/120 ≈ 0.21 | mais lento | 1♥ / ≥2h |
+| guru | 25/180 ≈ 0.14 | ~0.15 | bem lento |
 
-Seleção em runtime (`pickFrames`):
+Energy tem rates próprias (sempre um pouco mais lentas que hunger).
 
-1. `dead` → frame estático `DEAD` (1f)
-2. `hibernating` → `HIBERNATE` (3f, **mesmo casulo pra todas as formas**)
-3. senão → `SPRITES[stage][anim]` onde `anim ∈ { idle, feed, sleep, play }`
+### Neglect / morte
 
-### Timing de ação (gameplay ↔ anim)
+- Zero em hunger **ou** mood por 12 min → +1 `careMistake` (acumula).
+- Zero por 40 min → `dead` (exceto **egg** e **larva** — não morrem por neglect).
+- `careMistakes` aparece no hint de evo; **ainda não** muda qual adulto/forma sai (não há branching de evolução por mistakes).
+- Dead: sprite = idle do estágio atual recolorido cinza + X nos olhos (não mais ovo genérico).
+- Revive: stats 75, limpa neglect; **não** reseta estágio.
 
-```js
-ACTION_MS = { feed: 4500, sleep: 7000, play: 5500 }
-```
+### UX / shell
 
-- Ao clicar ação: `anim = kind`, `busyUntil = now() + ACTION_MS[kind]`, botões lock.
-- Boost de stats só aplica **no fim** da animação (`pendingBoost`).
-- Barra de progresso CSS acompanha a ação (ou a hibernação).
+- Dock flutuante, arrastável, rename no nome.
+- Botão `_` = minimizar (não kill).
+- Chip: canto inferior **esquerdo**, discreto (opacity baixa), só símbolo `●` / `!` / `◐` / `×`.
+- Chip só aparece se `discovered` (depois do primeiro `tamago run`).
+- Loop `rAF` continua minimizado pra decay + atualizar chip.
+- Esc minimiza o dock.
 
-### Velocidade de troca de frame (ms entre frames)
+### Animações (resumo — já revisado antes)
 
-| Condição | speed |
-|----------|-------|
-| default idle | 520 |
-| hibernating | 780 |
-| sleep | 700 |
-| feed / play | 260 |
-| elder idle | 640 |
-| guru idle | 480 |
-| alfa idle | 500 |
-
-### CSS / polish fora do canvas
-
-- `.pet-dock.is-hibernate .pet-canvas` ganha glow ciano.
-- **Não** há FX CSS distintos pra eat/sleep/play além do sprite + status text + progress bar.
-- Scanline comentada no código (`// scanline soft`) — **não implementada** no draw.
+- Canvas 16×16 ×10, paleta 8 cores, frames em strings `F([...])`.
+- Contagem tipica: idle 2f / eat 3f / sleep 2f / play 3f.
+- eat/play: **one-shot + hold** no último frame (anti loop-spam).
+- Blink assíncrono no idle; idle hungry (olhos cinza + gota) se hunger/mood &lt; 28.
+- Flash âmbar no tick do feed boost.
+- Hibernate S/M/L; dead por estágio.
 
 ---
 
-## Inventário completo de frames (contagem real no código)
+## Decisões de design já tomadas pelo dono (respeite)
 
-Padrão dominante em quase todas as formas:
-
-| Anim | Frames típicos |
-|------|----------------|
-| idle / standby | **2f** |
-| eat / feed | **3f** |
-| sleep | **2f** |
-| play | **3f** |
-
-### Por estágio
-
-| Stage | idle | eat | sleep | play | Notas |
-|-------|------|-----|-------|------|-------|
-| egg | 2 | 3 | — (reusa idle) | — (reusa idle) | Só feed é ação válida; sleep/play bloqueados no gameplay |
-| larva | 2 | 3 | 2 | 3 | Formatação “expansiva” (1 string por linha) |
-| pupa | 2 | 3 | 2 | 3 | Idem |
-| kid | 2 | 3 | 2 | 3 | Encoding compacto (várias strings por linha) |
-| teen | 2 | 3 | 2 | 3 | Compacto |
-| adult | 2 | 3 | 2 | 3 | Expansivo (foi feito cedo na cadeia) |
-| alfa | 2 | 3 | 2 | 3 | Compacto |
-| elder | 2 | 3 | 2 | 3 | Compacto; idle mais lento |
-| guru | 2 | 3 | 2 | 3 | Compacto; idle um pouco mais rápido |
-| **HIBERNATE** (global) | — | — | — | — | **3f** casulo ciano + Z flutuante; **não muda por estágio** |
-| **DEAD** | — | — | — | — | **1f** estático; visual lembra ovo cinza + X |
-
-Total aprox.: ~9 formas × ~10 frames de ação + hibernate + dead ≈ **~95 frames** desenhados à mão em strings.
+1. Cadeia longa de 9 formas + hibernação **fica** (não cortar pra Gen1 de 5 fases).
+2. Paleta brand / 16×16 / strings `F([...])` ficam.
+3. Pet em **todas** as telas via chip discreto — não pode atrapalhar pentest.
+4. Cuidar com barra cheia **não** pode valer (anti-clicker).
+5. `run` ≠ reset; `kill` = wipe.
+6. Easter egg continua secreto no `help` da home.
 
 ---
 
-## Motifs visuais recorrentes (o que o código “diz”)
+## Cheiros / gaps conhecidos (pra você confirmar ou descartar)
 
-Observações do autor / leitura do código (valide ou critique):
-
-1. **Outline preto (1)** + corpo vermelho (2/3) + olhos brancos (5) como silhueta base.
-2. **Ciano (4)** = vida / energia / Zzz / hibernação / “signal”.
-3. **Âmbar (7)** = comida/snack caindo na boca nas anims de eat.
-4. **Cinza (6)** = olhos fechados no sleep + corpo morto.
-5. Idle costuma ser **bob vertical / antenas / brilho** sutil (2 frames).
-6. Eat costuma ser **item caindo → boca aberta → mastiga**.
-7. Sleep costuma ser **olhos cinza + Z ciano**.
-8. Play costuma ser **salto / tilt / partículas ciano**.
-9. Hibernação = **casulo único** (não morph da forma atual).
-
----
-
-## Peculiaridades / cheiros técnicos (pra você atacar)
-
-Lista proposital — confirme no raciocínio e diga se importa:
-
-1. **`frameIdx` não reseta** ao trocar `anim` (idle→eat). Pode começar eat no meio do ciclo.
-2. **Hibernação visual idêntica** ovo→guru (só muda texto HUD). Perde fantasy da metamorfose.
-3. **DEAD** parece ovo morto, não a forma atual.
-4. **Egg sleep/play** apontam pro mesmo `EGG_IDLE` no pack (ok no gameplay, mas pack mente).
-5. Contagem de frames **uniforme** (2/3) em todas as formas — risco de “mesmo ritmo, só skin diferente”.
-6. Formas late-game (kid→guru) parecem ter sido feitas em **batch compacto**; larva/pupa/adult mais “hand-authored”. Possível queda de qualidade / silhueta fraca nas late forms.
-7. Sem **anticipation / recovery** frames; ações são loops curtos durante `ACTION_MS` longo (4.5–7s) → pode parecer loop spam.
-8. Sem estados derivados de stats no sprite (fome baixa / humor baixo / crítico) — só texto + cor da barra.
-9. `paint()` faz `load()` do `localStorage` **várias vezes por frame** (perf / cheiro, secundário ao art direction).
-10. Comentário de scanline sem implementação.
-11. Sem anim de **transição** ao entrar/sair da hibernação (hard cut pro casulo).
-12. Guru/Alfa/Elder diferem pouco em **timing**, quase nada em **linguagem de movimento**.
+1. `careMistakes` é contabilizado mas **não altera evolução** (promessa Gen1 incompleta).
+2. Egg com hunger 100 + decay 0: o único “cuidado” é o feed excepcional — lore frágil no começo.
+3. Gates late-game (8–12h + muitos cares) vs decay lento de adult+: risco de **vitrine parada** (“já cresceu, agora é espera”).
+4. Play gasta energy mas sleep/feed não têm tradeoff cruzado forte.
+5. Sem sickness / disciplina / light (sistemas clássicos Gen1 ausentes) — ok pra easter egg, mas o loop pode ficar raso (só 3 botões).
+6. Chip só após discover: no guide “frio” o pet não existe até alguém rodar `tamago run` na home.
+7. `paint()` ainda faz vários `load()` por frame (cheiro de perf; secundário).
+8. Elder vs Guru ainda fracos em identidade (arte + mecânica quase iguais).
+9. Revive é barato (sem penalty) — morte pode não doer.
+10. Hibernação bloqueia tudo por minutos reais — no meio do pentest pode irritar ou ser flavor bom; precisa veredito.
 
 ---
 
 ## O que eu quero de você (entregáveis)
 
-Responda em **português**, direto, nível expert. Estrutura:
+Responda em **português**, direto, nível expert.
 
-### 1. Veredito em 5 linhas
-O sistema atual é “bom o bastante”, “forte pra easter egg”, ou “precisa de salto de qualidade”? Por quê.
+### 1. Veredito em 8 linhas
+O Bitmite como minigame: está “easter egg gostoso”, “loop incompleto”, ou “quase um jogo”? O que carrega e o que fura.
 
-### 2. O que está funcionando (específico)
-Cite motifs / decisões técnicas que valem manter (ex.: paleta curta, 16×16, boost no fim da anim, etc.).
+### 2. Fantasy / lore
+A cadeia ovo→guru + hibernação + Bitmite cyber-garagem: coeso? Onde a mecânica contradiz a fantasy?
 
-### 3. Diagnóstico por família de animação
-Para cada uma: **idle**, **eat**, **sleep**, **play**, **hibernate**, **dead** — diga:
-- legibilidade em 160px
-- leitura emocional
-- se o loop sustenta a duração real da ação (`ACTION_MS`)
-- nota 1–10
+### 3. Loop core (cuidar → esperar → evoluir)
+- Ritmo larva vs adult+
+- Anti-cheat `≤75` é justo ou punitivo demais / de menos?
+- Gates (cares × tempo): quais stages estão broken?
+- Hibernação: feature ou atrito?
 
-### 4. Diagnóstico por estágio
-Ovo → Guru: onde a silhueta evolui de verdade vs. onde vira “recolor / chifrinho a mais”. Marque os 2 melhores e os 2 mais fracos.
+### 4. Progressão e meta
+- 9 formas: sustentável pro escopo?
+- Care mistakes sem branching: implementar o quê (mínimo viável) ou dropar a métrica?
+- Guru: o que o jogador “ganha” ao chegar? (hoje: quase nada além do sprite)
 
-### 5. Gaps de game feel (não só arte)
-Priorize 5 melhorias de **maior impacto / menor esforço** (ex.: reset `frameIdx`, hold no último frame, blink no idle, Z intensificando, flash de comida, etc.).
+### 5. Morte / revive / kill
+Peso emocional vs reset funcional. Revive barato ok?
 
-### 6. Gaps de maior esforço (só se valer a pena)
-Ex.: hibernate por estágio, dead por estágio, idle “hungry/sad”, cutscene de evo 5–8 frames.
+### 6. UX no contexto pentest
+- Chip discreto + dock overlay: atrapalha?
+- Descoberta só via terminal: certo pro easter egg ou cruel demais?
+- Minimizar/maximizar cross-page: furos?
 
-### 7. Spec mínima de upgrade (se eu for iterar)
-Proposta concreta de pipeline:
-- frames alvo por anim (ex.: idle 4f, eat 6f one-shot + hold)
-- timing sugerido vs `ACTION_MS`
-- regras de silhueta por estágio (tamanho, membros, props)
-- o que **não** mexer pra não matar o charme atual
+### 7. Arte / feel (só o que ainda importa pro jogo)
+Não repita o review antigo inteiro. Liste só os 5 gaps de arte/feel que **ainda** travam o game feel depois dos fixes (hold, blink, dead por estágio, casulos S/M/L, hungry idle).
 
-### 8. Perguntas pra mim
-Máx. 5 perguntas que mudam o design (ex.: quero vibe Tamagotchi original vs. Digimon/rebirth cyber?).
+### 8. Top 7 mudanças (impacto × esforço)
+Tabela ou lista ranqueada. Cada item: o que mudar, por quê, esforço (baixo/médio/alto), risco.
 
----
+### 9. O que NÃO mexer
+Lista explícita pra não matar o charme.
 
-## Restrições do projeto (respeite)
-
-- Continua sendo easter egg num site estático — **sem** engine, **sem** aseprite pipeline obrigatório, **sem** spritesheet PNG se strings 16×16 continuarem viáveis.
-- Manter paleta brand (vermelho/ciano/preto).
-- Cadeia longa + hibernação fica (não simplificar pra Gen1 de 5 fases só por causa da arte).
-- Preferir upgrades que eu consiga desenhar frame-a-frame no mesmo formato `F([...])`.
+### 10. Perguntas pra mim (máx. 6)
+Só perguntas que mudam o design de verdade.
 
 ---
 
 ## Tom
 
-Cruel mas útil. Nada de “está incrível!!”. Se achar que late-game é copy-paste disfarçado, diga. Se achar que 2 frames de idle é o sweet spot pra esse tamanho, também diga — e explique o porquê.
+Cruel mas útil. Sem “está incrível!!”. Se achar que late-game é grindy sem payoff, diga. Se achar que pra easter egg já passou do ponto de complexidade, também diga — e proponha o que cortar vs o que aprofundar.
+
+Se quiser citar Tamagotchi Gen1 / Digimon / modern virtual pets como referência de sistema, ok — mas priorize o que o **código atual** faz, não nostalgia solta.
