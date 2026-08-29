@@ -3,6 +3,7 @@
   const SESSION_KEY = "phantonite-hub-session";
   const NOTES_KEY = "phantonite-hub-notes";
   const NOTES_OPEN_KEY = "phantonite-hub-notes-open";
+  const KB_MODE_KEY = "phantonite-hub-kb-mode";
   const LEGACY = {
     state: "jornada-hunter-v1",
     session: "jornada-hunter-session",
@@ -31,6 +32,7 @@
 
   const state = loadState();
   const session = loadSession();
+  let kbMode = loadKbMode();
 
   const els = {
     phase: document.querySelector("[data-phase]"),
@@ -76,6 +78,28 @@
 
   function saveSession() {
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }
+
+  function loadKbMode() {
+    try {
+      const m = localStorage.getItem(KB_MODE_KEY);
+      if (m === "study" || m === "field") return m;
+    } catch (_) {}
+    return "field";
+  }
+
+  function setKbMode(mode) {
+    if (mode !== "study" && mode !== "field") return;
+    kbMode = mode;
+    try {
+      localStorage.setItem(KB_MODE_KEY, mode);
+    } catch (_) {}
+    const node = pb.nodes[state.nodeId];
+    renderKnowledge(node?.knowledgeIds);
+  }
+
+  function toggleKbMode() {
+    setKbMode(kbMode === "field" ? "study" : "field");
   }
 
   function toast(msg) {
@@ -465,73 +489,110 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     return window.HUNTER_KNOWLEDGE?.entries?.[id] || null;
   }
 
+  function relatedPills(entry) {
+    return (entry.related || [])
+      .slice(0, 4)
+      .map((r) => {
+        const t = getKnowledge(r.id)?.title || r.id;
+        return `<span class="knowledge-pill">${esc(t)}</span>`;
+      })
+      .join("");
+  }
+
+  function renderKnowledgeField(entry) {
+    const hyps = (entry.field?.hypotheses || []).slice(0, 4);
+    const tests = (entry.field?.tests || []).slice(0, 4);
+    const related = relatedPills(entry);
+    return `<article class="knowledge-card knowledge-card-field">
+      <header class="knowledge-card-head">
+        <span class="knowledge-kicker">Knowledge · Field</span>
+        <strong>${esc(entry.title)}</strong>
+        <span class="knowledge-meta">${esc(entry.kind)} · ${esc(entry.freshness)}</span>
+      </header>
+      <p class="knowledge-observe"><strong>Observe:</strong> ${esc(entry.field?.observe || "")}</p>
+      ${
+        hyps.length
+          ? `<div class="knowledge-section"><span>Hipóteses</span><ul>${hyps
+              .map((h) => `<li>${esc(h)}</li>`)
+              .join("")}</ul></div>`
+          : ""
+      }
+      ${
+        tests.length
+          ? `<div class="knowledge-section"><span>Testes</span><ul>${tests
+              .map((t) => `<li>${esc(t)}</li>`)
+              .join("")}</ul></div>`
+          : ""
+      }
+      ${entry.field?.validate ? `<p class="knowledge-observe"><strong>Validar:</strong> ${esc(entry.field.validate)}</p>` : ""}
+      ${entry.field?.evidence ? `<p class="knowledge-observe"><strong>Evidência:</strong> ${esc(entry.field.evidence)}</p>` : ""}
+      ${
+        (entry.field?.tools || []).length
+          ? `<p class="knowledge-meta">Tools: ${esc(entry.field.tools.join(", "))}</p>`
+          : ""
+      }
+      ${related ? `<div class="knowledge-related">${related}</div>` : ""}
+    </article>`;
+  }
+
+  function renderKnowledgeStudy(entry) {
+    const related = relatedPills(entry);
+    const refs = (entry.study?.references || [])
+      .slice(0, 3)
+      .map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`)
+      .join("");
+    return `<article class="knowledge-card knowledge-card-study">
+      <header class="knowledge-card-head">
+        <span class="knowledge-kicker">Knowledge · Study</span>
+        <strong>${esc(entry.title)}</strong>
+        <span class="knowledge-meta">${esc(entry.kind)} · ${esc(entry.freshness)}</span>
+      </header>
+      <p class="knowledge-observe">${esc(entry.study?.summary || "")}</p>
+      ${
+        entry.study?.whenToLook
+          ? `<div class="knowledge-section"><span>Quando procurar</span><p class="knowledge-body">${esc(entry.study.whenToLook)}</p></div>`
+          : ""
+      }
+      ${
+        entry.study?.howItWorks
+          ? `<div class="knowledge-section"><span>Como funciona</span><p class="knowledge-body">${esc(entry.study.howItWorks)}</p></div>`
+          : ""
+      }
+      ${
+        entry.study?.limitations
+          ? `<div class="knowledge-section"><span>Limitações</span><p class="knowledge-body">${esc(entry.study.limitations)}</p></div>`
+          : ""
+      }
+      ${related ? `<div class="knowledge-related">${related}</div>` : ""}
+      ${
+        refs
+          ? `<div class="knowledge-section"><span>Refs</span><ul class="knowledge-refs">${refs}</ul></div>`
+          : ""
+      }
+    </article>`;
+  }
+
   function renderKnowledge(ids) {
     if (!els.knowledge) return;
     if (!ids || !ids.length) {
       els.knowledge.innerHTML = "";
       return;
     }
+    const toolbar = `<div class="knowledge-toolbar" role="group" aria-label="Modo Knowledge">
+      <span class="knowledge-toolbar-label">Modo</span>
+      <button type="button" class="knowledge-mode-btn${kbMode === "field" ? " is-active" : ""}" data-kb-mode="field" title="Engajamento / Field (K)">Field</button>
+      <button type="button" class="knowledge-mode-btn${kbMode === "study" ? " is-active" : ""}" data-kb-mode="study" title="Estudo / Study (K)">Study</button>
+    </div>`;
     const cards = ids
       .map((id) => {
         const entry = getKnowledge(id);
         if (!entry) {
           return `<div class="knowledge-card knowledge-card-miss"><strong>KB</strong> entry <code>${esc(id)}</code> não carregou</div>`;
         }
-        const hyps = (entry.field?.hypotheses || []).slice(0, 3);
-        const tests = (entry.field?.tests || []).slice(0, 3);
-        const related = (entry.related || [])
-          .slice(0, 4)
-          .map((r) => {
-            const t = getKnowledge(r.id)?.title || r.id;
-            return `<span class="knowledge-pill">${esc(t)}</span>`;
-          })
-          .join("");
-        return `<article class="knowledge-card">
-          <header class="knowledge-card-head">
-            <span class="knowledge-kicker">Knowledge · Field</span>
-            <strong>${esc(entry.title)}</strong>
-            <span class="knowledge-meta">${esc(entry.kind)} · ${esc(entry.freshness)}</span>
-          </header>
-          <p class="knowledge-observe"><strong>Observe:</strong> ${esc(entry.field?.observe || entry.study?.summary || "")}</p>
-          ${
-            hyps.length
-              ? `<div class="knowledge-section"><span>Hipóteses</span><ul>${hyps
-                  .map((h) => `<li>${esc(h)}</li>`)
-                  .join("")}</ul></div>`
-              : ""
-          }
-          ${
-            tests.length
-              ? `<div class="knowledge-section"><span>Testes (mindset)</span><ul>${tests
-                  .map((t) => `<li>${esc(t)}</li>`)
-                  .join("")}</ul></div>`
-              : ""
-          }
-          ${related ? `<div class="knowledge-related">${related}</div>` : ""}
-          <details class="knowledge-details">
-            <summary>Ver entry completa (Study + Field)</summary>
-            <div class="knowledge-full">
-              <h4>Study</h4>
-              <p>${esc(entry.study?.summary || "")}</p>
-              ${entry.study?.howItWorks ? `<p><strong>Como funciona:</strong> ${esc(entry.study.howItWorks)}</p>` : ""}
-              ${entry.study?.limitations ? `<p><strong>Limitações:</strong> ${esc(entry.study.limitations)}</p>` : ""}
-              <h4>Field</h4>
-              ${entry.field?.validate ? `<p><strong>Validar:</strong> ${esc(entry.field.validate)}</p>` : ""}
-              ${entry.field?.evidence ? `<p><strong>Evidência:</strong> ${esc(entry.field.evidence)}</p>` : ""}
-              ${entry.field?.impact ? `<p><strong>Impacto:</strong> ${esc(entry.field.impact)}</p>` : ""}
-              ${entry.field?.remediation ? `<p><strong>Remediação:</strong> ${esc(entry.field.remediation)}</p>` : ""}
-              ${entry.field?.retest ? `<p><strong>Retest:</strong> ${esc(entry.field.retest)}</p>` : ""}
-              ${
-                (entry.field?.tools || []).length
-                  ? `<p><strong>Tools:</strong> ${esc(entry.field.tools.join(", "))}</p>`
-                  : ""
-              }
-            </div>
-          </details>
-        </article>`;
+        return kbMode === "study" ? renderKnowledgeStudy(entry) : renderKnowledgeField(entry);
       })
       .join("");
-    els.knowledge.innerHTML = cards;
+    els.knowledge.innerHTML = toolbar + cards;
   }
 
   function render() {
@@ -557,6 +618,11 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
   }
 
   document.addEventListener("click", (e) => {
+    const modeBtn = e.target.closest("[data-kb-mode]");
+    if (modeBtn) {
+      setKbMode(modeBtn.getAttribute("data-kb-mode"));
+      return;
+    }
     const to = e.target.closest("[data-to]");
     if (to) {
       go(to.getAttribute("data-to"));
@@ -636,6 +702,14 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     }
     if (e.key === "e" || e.key === "E") {
       copyText(buildExports(), "Exports → Kali");
+      return;
+    }
+    if (e.key === "k" || e.key === "K") {
+      const node = pb.nodes[state.nodeId];
+      if (node?.knowledgeIds?.length) {
+        e.preventDefault();
+        toggleKbMode();
+      }
       return;
     }
     const num = Number(e.key);

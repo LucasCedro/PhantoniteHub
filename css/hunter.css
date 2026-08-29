@@ -1084,6 +1084,40 @@ body.pet-dragging .pet-dock { animation: none; }
 .say.warn { border-left-color: var(--amber); }
 .say.danger { border-left-color: var(--coral); }
 
+.knowledge-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  flex-wrap: wrap;
+}
+.knowledge-toolbar-label {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim, #8fa89a);
+  margin-right: 0.25rem;
+}
+.knowledge-mode-btn {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line, #2a3830);
+  background: transparent;
+  color: var(--ink-dim, #8fa89a);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.knowledge-mode-btn:hover {
+  border-color: var(--cyan, #00d4ff);
+  color: var(--ink, #e7eee9);
+}
+.knowledge-mode-btn.is-active {
+  border-color: var(--cyan, #00d4ff);
+  color: var(--bg, #0d1210);
+  background: var(--cyan, #00d4ff);
+}
 .knowledge-card {
   margin: 0 0 1.25rem;
   padding: 0.9rem 1rem;
@@ -1091,6 +1125,12 @@ body.pet-dragging .pet-dock { animation: none; }
   border-left: 3px solid var(--cyan, #00d4ff);
   background: var(--panel2, #1e2823);
   border-radius: 0 8px 8px 0;
+}
+.knowledge-card-study {
+  border-left-color: var(--amber, #e9c46a);
+}
+.knowledge-card-study .knowledge-kicker {
+  color: var(--amber, #e9c46a);
 }
 .knowledge-card-miss { border-left-color: var(--coral, #e07a5f); }
 .knowledge-card-head {
@@ -1117,6 +1157,12 @@ body.pet-dragging .pet-dock { animation: none; }
   font-size: 0.92rem;
   color: var(--ink-dim, #8fa89a);
 }
+.knowledge-body {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink, #e7eee9);
+  line-height: 1.45;
+}
 .knowledge-section {
   margin-bottom: 0.65rem;
 }
@@ -1134,6 +1180,13 @@ body.pet-dragging .pet-dock { animation: none; }
   color: var(--ink, #e7eee9);
   font-size: 0.9rem;
 }
+.knowledge-refs {
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+.knowledge-refs a {
+  color: var(--cyan, #00d4ff);
+}
 .knowledge-related {
   display: flex;
   flex-wrap: wrap;
@@ -1148,28 +1201,6 @@ body.pet-dragging .pet-dock { animation: none; }
   color: var(--ink-dim, #8fa89a);
   font-family: "IBM Plex Mono", monospace;
 }
-.knowledge-details {
-  margin-top: 0.35rem;
-  font-size: 0.88rem;
-}
-.knowledge-details summary {
-  cursor: pointer;
-  color: var(--cyan, #00d4ff);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.8rem;
-}
-.knowledge-full {
-  margin-top: 0.65rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--line, #2a3830);
-  color: var(--ink-dim, #8fa89a);
-}
-.knowledge-full h4 {
-  margin: 0.75rem 0 0.35rem;
-  color: var(--ink, #e7eee9);
-  font-size: 0.85rem;
-}
-.knowledge-full p { margin: 0 0 0.5rem; }
 
 .block {
   margin: 0 0 1.5rem;

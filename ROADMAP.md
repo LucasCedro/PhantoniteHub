@@ -20,8 +20,8 @@ Não adicionar nós de cobertura/porta só por checklist. Corpus atual = classif
 Ordem de valor/hora (atualizada):
 
 1. **Knowledge architecture** + WebSec piloto + Foundations mínimas (Fase 1) — *FEITO* ([01-DONE](docs/fases/01-DONE.md))
-2. **Content QA / Study·Field / gate lab** (Fase 1.5) — *próxima*
-3. **Colar output → salto** sem LLM (Fase 2)
+2. **Content QA / Study·Field / gate lab** (Fase 1.5) — *FEITO* ([01.5-DONE](docs/fases/01.5-DONE.md)); gate = checklist do dono
+3. **Colar output → salto** sem LLM (Fase 2) — *próxima* ([pack](docs/prompts-fase2/README.md))
 4. **Copiloto** (Fase 3) — só depois da base boa
 5. **Evidence / reporting** (Fase 4)
 
@@ -72,7 +72,7 @@ Objetivo: playbook que aguenta engajamento web + host + AD light + cloud light +
 - [ ] **Gate teu:** 1 lab completo no HUB sem abrir writeup por “falta de ramo óbvio”
 - [ ] **Pós-gate (opcional):** 2º lab de categoria diferente, mesmo critério
 
-> Até o gate fechar: **não abrir Fase 2** (paste→jump). Matcher em cima de árvore não validada só automatiza conteúdo ruim.
+> Gate 1.5: dono validou uso em labs; avançar Fase 2 OK. Ajustes finos de conteúdo quando doer.
 
 ---
 
@@ -160,6 +160,8 @@ Perguntas do tipo “ajusta LHOST e me manda pro ramo shell” funcionam com con
 | 2026-08-28 | Prompt 04: wire `web-ssrf/jwt/sqli` → KB + card no guide |
 | 2026-08-28 | Prompt 05: RoE profissional (`roe` / `stop-roe`) — lab opcional |
 | 2026-08-28 | Prompt 06: Fase 1 fechada → handoff 1.5 (`docs/fases/01-DONE.md`) |
+| 2026-08-28 | Fase 1.5: toggle Study/Field + gate lab checklist (`01.5-DONE`) |
+| 2026-08-28 | Drop `prompts-fase1`; add `docs/prompts-fase2` pack (paste→jump) |
 
 ---
 
