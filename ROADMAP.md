@@ -5,17 +5,27 @@ Guia pessoal de pentest (HTML/CSS/JS). Sem backend obrigatório. Sem intenção 
 **Lema:** Nullius in verba.  
 **Paleta:** 60% preto · 30% vermelho · 10% ciano `#00D4FF`.
 
+**Fases (6):** ver [`docs/fases/README.md`](docs/fases/README.md) — `0 → 1 → 1.5 → 2 → 3 → 4`.  
+**ADR:** [`docs/ADR-001-knowledge-architecture.md`](docs/ADR-001-knowledge-architecture.md)  
+**KB schema:** [`data/knowledge/schema.md`](data/knowledge/schema.md) · registry `data/knowledge/registry.js`
+
+### Freeze (Fase 1)
+
+Não adicionar nós de cobertura/porta só por checklist. Corpus atual = classificar e ligar à KB.
+
 ---
 
 ## Norte
 
-Ordem de valor/hora (combinada):
+Ordem de valor/hora (atualizada):
 
-1. **Conteúdo da árvore** — ramos e comandos robustos (vanguarda + clássicos)
-2. **Colar output do terminal** — erros comuns → salto de nó (sem IA)
-3. **Copiloto** — assistente (Ollama/API) + tools (`set_params`, `goto_node`)
+1. **Knowledge architecture** + WebSec piloto + Foundations mínimas (Fase 1) — *FEITO* ([01-DONE](docs/fases/01-DONE.md))
+2. **Content QA / Study·Field / gate lab** (Fase 1.5) — *próxima*
+3. **Colar output → salto** sem LLM (Fase 2)
+4. **Copiloto** (Fase 3) — só depois da base boa
+5. **Evidence / reporting** (Fase 4)
 
-Não pular etapas. Copiloto cedo demais = chat bonito em cima de árvore rasa.
+Não pular. Copiloto cedo = chat bonito em cima de árvore/KB ruim.
 
 ---
 
@@ -29,9 +39,11 @@ Não pular etapas. Copiloto cedo demais = chat bonito em cima de árvore rasa.
 
 ---
 
-## Fase 1 — Árvore robusta (FEITO · v2.1.0)
+## Fase 1 — Árvore robusta (conteúdo completo · **pendente validação de campo** · v2.1.0)
 
 Objetivo: playbook que aguenta engajamento web + host + AD light + cloud light + post-exploit, sem depender do que o Phantonite “já sabe”.
+
+> Status honesto: conteúdo + wiring + smoke OK. **Valor de campo ainda não confirmado** — gate 1.3 aberto. Não tratar como “pronto pra combate” até fechar o lab.
 
 ### 1.1 Cobertura alvo
 
@@ -58,6 +70,9 @@ Objetivo: playbook que aguenta engajamento web + host + AD light + cloud light +
 
 - [x] Conteúdo + wiring prontos pra engajamento web/host/AD-light/cloud-light/post (v2.1.0)
 - [ ] **Gate teu:** 1 lab completo no HUB sem abrir writeup por “falta de ramo óbvio”
+- [ ] **Pós-gate (opcional):** 2º lab de categoria diferente, mesmo critério
+
+> Até o gate fechar: **não abrir Fase 2** (paste→jump). Matcher em cima de árvore não validada só automatiza conteúdo ruim.
 
 ---
 
@@ -110,6 +125,7 @@ Perguntas do tipo “ajusta LHOST e me manda pro ramo shell” funcionam com con
 - [ ] Self-host fonts 100% offline
 - [x] Smoke do playbook (`scripts/smoke-playbook.js`)
 - [ ] Testes automatizados do hydrate + links da árvore (expandir)
+- [x] First-run soft: abre params se IP vazio; bloqueia copy de cmd que depende de IP/LHOST sem session
 
 ---
 
@@ -138,6 +154,12 @@ Perguntas do tipo “ajusta LHOST e me manda pro ramo shell” funcionam com con
 | 2026-08-26 | HUB nasce (UI + params + árvore inicial) |
 | 2026-08-26 | Roadmap formal; árvore v2.0.0 (+34 nós em `playbook-extra.js`) |
 | 2026-08-26 | Fase 1 fechada em conteúdo · v2.1.0 (61 nós, 0 órfãos; LFI/SQLi/XSS/CMDi/GQL/crack/relay/xfer) |
+| 2026-08-28 | ADR-001 Knowledge architecture; `data/knowledge/` schema + registry v0.1.0 (entries vazias) |
+| 2026-08-28 | Prompt 02: pilotos `ssrf`, `jwt-attacks`, `sqli` (registry v0.2.0) |
+| 2026-08-28 | Prompt 03: foundations stubs + `cloud-metadata` (registry v0.3.0) |
+| 2026-08-28 | Prompt 04: wire `web-ssrf/jwt/sqli` → KB + card no guide |
+| 2026-08-28 | Prompt 05: RoE profissional (`roe` / `stop-roe`) — lab opcional |
+| 2026-08-28 | Prompt 06: Fase 1 fechada → handoff 1.5 (`docs/fases/01-DONE.md`) |
 
 ---
 

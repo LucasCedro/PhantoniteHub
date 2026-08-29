@@ -1084,6 +1084,93 @@ body.pet-dragging .pet-dock { animation: none; }
 .say.warn { border-left-color: var(--amber); }
 .say.danger { border-left-color: var(--coral); }
 
+.knowledge-card {
+  margin: 0 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line, #2a3830);
+  border-left: 3px solid var(--cyan, #00d4ff);
+  background: var(--panel2, #1e2823);
+  border-radius: 0 8px 8px 0;
+}
+.knowledge-card-miss { border-left-color: var(--coral, #e07a5f); }
+.knowledge-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.65rem;
+}
+.knowledge-kicker {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cyan, #00d4ff);
+}
+.knowledge-card-head strong { font-size: 1rem; }
+.knowledge-meta {
+  font-size: 0.78rem;
+  color: var(--ink-dim, #8fa89a);
+  font-family: "IBM Plex Mono", monospace;
+}
+.knowledge-observe {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  color: var(--ink-dim, #8fa89a);
+}
+.knowledge-section {
+  margin-bottom: 0.65rem;
+}
+.knowledge-section > span {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim, #8fa89a);
+  margin-bottom: 0.25rem;
+}
+.knowledge-section ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink, #e7eee9);
+  font-size: 0.9rem;
+}
+.knowledge-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.knowledge-pill {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--line, #2a3830);
+  border-radius: 999px;
+  color: var(--ink-dim, #8fa89a);
+  font-family: "IBM Plex Mono", monospace;
+}
+.knowledge-details {
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+}
+.knowledge-details summary {
+  cursor: pointer;
+  color: var(--cyan, #00d4ff);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8rem;
+}
+.knowledge-full {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--line, #2a3830);
+  color: var(--ink-dim, #8fa89a);
+}
+.knowledge-full h4 {
+  margin: 0.75rem 0 0.35rem;
+  color: var(--ink, #e7eee9);
+  font-size: 0.85rem;
+}
+.knowledge-full p { margin: 0 0 0.5rem; }
+
 .block {
   margin: 0 0 1.5rem;
   padding-bottom: 1.5rem;
@@ -1289,34 +1376,122 @@ th {
   transform: none;
 }
 
-/* ——— Notes + choice keys ——— */
-.notes {
-  margin-top: 1.25rem;
+/* ——— Notes popup (bloco de notas) ——— */
+.notes-drawer {
+  position: fixed;
+  z-index: 61;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, calc(100vw - 2rem));
+  height: min(78vh, 640px);
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  min-height: 0;
-  flex: 1;
+  background: #070707;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 0 1px #111;
+  overscroll-behavior: contain;
 }
-.notes textarea {
-  width: 100%;
-  min-height: 160px;
-  flex: 1;
-  resize: vertical;
-  background: #060807;
+.notes-drawer[hidden],
+.notes-backdrop[hidden] {
+  display: none !important;
+}
+body.notes-open {
+  overflow: hidden;
+}
+.notes-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(2px);
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+.notes-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: #0a0a0a;
+  flex-shrink: 0;
+}
+.notes-head-main h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--signal);
+}
+.notes-head-note {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.03em;
+}
+.notes-x {
+  appearance: none;
+  background: transparent;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.65rem;
   color: var(--ink-dim);
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  border-radius: 2px;
+}
+.notes-x:hover {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.notes-pad {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0.9rem 1.1rem 1.1rem;
+  background: #050505;
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  line-height: 1.45;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  overscroll-behavior: contain;
 }
-.notes textarea:focus {
+.notes-pad:focus {
   outline: none;
-  border-color: var(--signal-dim);
-  color: var(--ink);
+  background: #060606;
 }
+.notes-pad::placeholder {
+  color: var(--ink-faint);
+}
+.rail-tools button.is-on {
+  border-color: var(--ice);
+  color: var(--ice);
+}
+
+@media (max-width: 720px) {
+  .notes-drawer {
+    width: calc(100vw - 1rem);
+    height: min(85vh, 720px);
+  }
+  .notes-pad {
+    font-size: 0.72rem;
+    padding: 0.85rem 1rem;
+  }
+}
+
+/* legacy compact (removido da UI) */
+body.compact .stage { padding-top: 1rem; }
+body.compact .block { margin-bottom: 1rem; padding-bottom: 1rem; }
+body.compact .say { margin-bottom: 1rem; padding: 0.75rem 0.9rem; }
+body.compact .hero { padding: 2.5rem 0; }
 
 .choice-key {
   display: inline-flex;
@@ -1357,6 +1532,11 @@ th {
   border-color: var(--ice);
   color: var(--ink);
   background: var(--ice-soft);
+}
+.params-chip.is-empty {
+  border-style: solid;
+  border-color: #e8a317;
+  color: #e8a317;
 }
 .params-chip-go { color: var(--ink-faint); white-space: nowrap; }
 .params-chip:hover .params-chip-go { color: var(--ice); }
@@ -1620,11 +1800,6 @@ th {
   color: var(--ice);
 }
 .help-panel dd { margin: 0; }
-
-body.compact .stage { padding-top: 1rem; }
-body.compact .block { margin-bottom: 1rem; padding-bottom: 1rem; }
-body.compact .say { margin-bottom: 1rem; padding: 0.75rem 0.9rem; }
-body.compact .hero { padding: 2.5rem 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

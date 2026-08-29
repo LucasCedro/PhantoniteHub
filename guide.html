@@ -47,7 +47,7 @@
         </button>
         <div class="rail-tools">
           <button type="button" data-help-toggle title="Atalhos">?</button>
-          <button type="button" data-compact title="Densidade">Aa</button>
+          <button type="button" data-notes-toggle title="Bloco de notas (N)">✎</button>
           <button type="button" data-reset title="Zerar trilha">↺</button>
         </div>
       </footer>
@@ -55,13 +55,14 @@
 
     <main class="stage">
       <button type="button" class="params-chip" data-params-open>
-        <span data-chip-summary>IP / TARGET / LHOST — clica pra editar parâmetros</span>
+        <span data-chip-summary>IP alvo / URL / meu IP — clica pra editar</span>
         <span class="params-chip-go">abrir →</span>
       </button>
 
       <p class="node-kicker" data-phase>Briefing</p>
       <h1 data-title>…</h1>
       <div class="say" data-say></div>
+      <div data-knowledge></div>
       <div data-blocks></div>
       <h2 class="node-kicker" style="margin-top:1.5rem">Próximo passo</h2>
       <div class="choices" data-choices></div>
@@ -70,12 +71,26 @@
     <aside class="map">
       <h3>Árvore</h3>
       <div data-mini></div>
-      <div class="notes">
-        <h3>Notas do engajamento</h3>
-        <textarea data-notes placeholder="users, paths, hipóteses… salva sozinho"></textarea>
-      </div>
     </aside>
   </div>
+
+  <!-- Bloco de notas -->
+  <div class="notes-backdrop" data-notes-close hidden></div>
+  <aside class="notes-drawer" data-notes-drawer hidden aria-label="Bloco de notas" role="dialog" aria-modal="true">
+    <header class="notes-head">
+      <div class="notes-head-main">
+        <h2>&gt; NOTES.txt</h2>
+        <span class="notes-head-note">popup · salva sozinho · N abre/fecha</span>
+      </div>
+      <button type="button" class="notes-x" data-notes-close aria-label="Fechar">X</button>
+    </header>
+    <textarea
+      class="notes-pad"
+      data-notes
+      spellcheck="false"
+      placeholder="users, paths, hipóteses, creds, portas…&#10;&#10;Escreve à vontade — persiste no browser."
+    ></textarea>
+  </aside>
 
   <!-- Parâmetros drawer -->
   <div class="params-backdrop" data-params-close hidden></div>
@@ -90,31 +105,31 @@
 
     <div class="params-body">
       <section class="params-section">
-        <h3>[ alvo / callback ]</h3>
+        <h3>[ alvo / você ]</h3>
         <div class="params-grid cols-3">
           <label class="field">
-            <span class="field-name">IP <button type="button" class="tip" data-tip="IP do alvo. Substitui $IP (nmap, hydra, msf RHOSTS…).">?</button></span>
-            <input data-field="ip" placeholder="10.66.x.x" spellcheck="false" />
+            <span class="field-name">IP do alvo <button type="button" class="tip" data-tip="IP da máquina que você ataca (lab). Entra no nmap, hydra, smb…">?</button></span>
+            <input data-field="ip" placeholder="192.168.167.249" spellcheck="false" />
           </label>
           <label class="field">
-            <span class="field-name">TARGET <button type="button" class="tip" data-tip="URL da app. Vazio = http://IP. Usado em gobuster/curl/wfuzz.">?</button></span>
-            <input data-field="target" placeholder="http://IP" spellcheck="false" />
+            <span class="field-name">URL do alvo <button type="button" class="tip" data-tip="Site completo. Se vazio = http://IP. Usado em gobuster/curl.">?</button></span>
+            <input data-field="target" placeholder="http://192.168.167.249" spellcheck="false" />
           </label>
           <label class="field">
-            <span class="field-name">DOMAIN <button type="button" class="tip" data-tip="Domínio / AD realm. Substitui $DOMAIN (subfinder, GetNPUsers, certipy…).">?</button></span>
+            <span class="field-name">Domínio <button type="button" class="tip" data-tip="Domínio AD (se tiver). Senão deixa vazio.">?</button></span>
             <input data-field="domain" placeholder="corp.local" spellcheck="false" />
           </label>
           <label class="field">
-            <span class="field-name">LHOST <button type="button" class="tip" data-tip="Teu IP (tun0/VPN). Callback do reverse / msf LHOST.">?</button></span>
-            <input data-field="lhost" placeholder="tun0" spellcheck="false" />
+            <span class="field-name">Meu IP (Kali) <button type="button" class="tip" data-tip="SEU IP na VPN/lab — pra shell voltar pra você. NÃO ponha tun0. Descobre com: ip -4 addr show tun0  (ou eth0) e copia o inet, tipo 10.10.14.5">?</button></span>
+            <input data-field="lhost" placeholder="10.10.14.5" spellcheck="false" />
           </label>
           <label class="field">
-            <span class="field-name">LPORT <button type="button" class="tip" data-tip="Porta do listener (rlwrap nc). Default 443; fallback 4444.">?</button></span>
+            <span class="field-name">Minha porta <button type="button" class="tip" data-tip="Porta do SEU listener (nc / msf). Comum: 443 ou 4444.">?</button></span>
             <input data-field="lport" placeholder="443" spellcheck="false" />
           </label>
           <label class="field">
-            <span class="field-name">RPORT <button type="button" class="tip" data-tip="Porta do serviço no alvo (445, 8080, 1234…).">?</button></span>
-            <input data-field="rport" placeholder="80/445/1234" spellcheck="false" />
+            <span class="field-name">Porta no alvo <button type="button" class="tip" data-tip="Porta do serviço no ALVO quando o comando pedir. Ex: 445, 3389, 8080.">?</button></span>
+            <input data-field="rport" placeholder="80" spellcheck="false" />
           </label>
         </div>
       </section>
@@ -190,6 +205,7 @@
       <dt>Backspace</dt><dd>Voltar</dd>
       <dt>P</dt><dd>Mapa de portas</dd>
       <dt>O</dt><dd>Abrir parâmetros</dd>
+      <dt>N</dt><dd>Bloco de notas</dd>
       <dt>E</dt><dd>Exports → Kali</dd>
       <dt>?</dt><dd>Abrir / fechar atalhos</dd>
       <dt>Esc</dt><dd>Fechar painéis</dd>
@@ -200,6 +216,7 @@
 
   <script src="data/playbook.js"></script>
   <script src="data/playbook-extra.js"></script>
+  <script src="data/knowledge/registry.js"></script>
   <script src="js/guide.js"></script>
   <script src="js/pet.js"></script>
 </body>

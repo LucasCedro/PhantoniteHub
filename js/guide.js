@@ -2,12 +2,11 @@
   const STORAGE_KEY = "phantonite-hub-v1";
   const SESSION_KEY = "phantonite-hub-session";
   const NOTES_KEY = "phantonite-hub-notes";
-  const COMPACT_KEY = "phantonite-hub-compact";
+  const NOTES_OPEN_KEY = "phantonite-hub-notes-open";
   const LEGACY = {
     state: "jornada-hunter-v1",
     session: "jornada-hunter-session",
     notes: "jornada-hunter-notes",
-    compact: "jornada-hunter-compact",
   };
 
   const DEFAULTS = {
@@ -37,12 +36,16 @@
     phase: document.querySelector("[data-phase]"),
     title: document.querySelector("[data-title]"),
     say: document.querySelector("[data-say]"),
+    knowledge: document.querySelector("[data-knowledge]"),
     blocks: document.querySelector("[data-blocks]"),
     choices: document.querySelector("[data-choices]"),
     crumb: document.querySelector("[data-crumb]"),
     mini: document.querySelector("[data-mini]"),
     toast: document.querySelector("[data-toast]"),
     notes: document.querySelector("[data-notes]"),
+    notesDrawer: document.querySelector("[data-notes-drawer]"),
+    notesBackdrop: document.querySelector(".notes-backdrop"),
+    notesToggle: document.querySelector("[data-notes-toggle]"),
     help: document.querySelector("[data-help]"),
     drawer: document.querySelector("[data-params-drawer]"),
     backdrop: document.querySelector(".params-backdrop"),
@@ -102,6 +105,26 @@
     const lh = session.lhost || "LHOST?";
     const lp = val("lport");
     els.chip.textContent = `${ip}  ·  ${tgt}  ·  LHOST ${lh}:${lp}`;
+    els.chip.classList.toggle("is-empty", !session.ip);
+  }
+
+  function sessionNeedsSetup() {
+    return !(session.ip || "").trim();
+  }
+
+  /** Bloqueia copy se o cmd ainda depende de IP e o session não tem. */
+  function cmdNeedsIp(raw) {
+    if (!raw) return false;
+    return /\$IP\b|IP_DO_ALVO|\$TARGET\b|\$DOMAIN\b|\$LHOST\b|TEU_IP_DE_ATAQUE|TEU_LHOST/.test(
+      raw
+    );
+  }
+
+  function promptSessionSetup(reason) {
+    openParams();
+    toast(reason || "Define IP / alvo / LHOST antes de copiar");
+    const ipInput = document.querySelector('[data-field="ip"]');
+    ipInput?.focus();
   }
 
   function buildExports() {
@@ -109,7 +132,7 @@
     const target = effectiveTarget() || `http://${ip}`;
     const lhost = session.lhost || "TEU_IP_DE_ATAQUE";
     const domain = session.domain || "dominio.se.houver";
-    return `# Phantonite HUB — cola no Kali
+    return `# Phantonite — exports
 export IP="${ip}"
 export DOMAIN="${domain}"
 export TARGET="${target}"
@@ -126,9 +149,6 @@ export NMAP_MINRATE="${val("nmap_minrate")}"
 export NMAP_EXTRA="${session.nmap_extra || ""}"
 export SQLMAP_OPTS="${val("sqlmap_opts")}"
 export SQLMAP_PARAM="${val("sqlmap_param")}"
-export NOTES="$HOME/engagements/phantonite-$(date +%Y%m%d)"
-mkdir -p "$NOTES"/{recon,evidence,requests,findings}
-cd "$NOTES"
 echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
   }
 
@@ -235,6 +255,7 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
   }
 
   function openHelp() {
+    closeNotes();
     els.help?.removeAttribute("hidden");
     els.help?.classList.add("open");
   }
@@ -251,6 +272,7 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
 
   function openParams() {
     closeHelp();
+    closeNotes();
     els.drawer?.removeAttribute("hidden");
     els.backdrop?.removeAttribute("hidden");
     document.querySelector("[data-field='ip']")?.focus();
@@ -259,6 +281,39 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
   function closeParams() {
     els.drawer?.setAttribute("hidden", "");
     els.backdrop?.setAttribute("hidden", "");
+  }
+
+  function isNotesOpen() {
+    return els.notesDrawer && !els.notesDrawer.hasAttribute("hidden");
+  }
+
+  function openNotes() {
+    closeHelp();
+    closeParams();
+    els.notesDrawer?.removeAttribute("hidden");
+    els.notesBackdrop?.removeAttribute("hidden");
+    els.notesToggle?.classList.add("is-on");
+    document.body.classList.add("notes-open");
+    localStorage.setItem(NOTES_OPEN_KEY, "1");
+    // foco no fim do texto
+    if (els.notes) {
+      els.notes.focus();
+      const len = els.notes.value.length;
+      els.notes.setSelectionRange(len, len);
+    }
+  }
+
+  function closeNotes() {
+    els.notesDrawer?.setAttribute("hidden", "");
+    els.notesBackdrop?.setAttribute("hidden", "");
+    els.notesToggle?.classList.remove("is-on");
+    document.body.classList.remove("notes-open");
+    localStorage.setItem(NOTES_OPEN_KEY, "0");
+  }
+
+  function toggleNotes() {
+    if (isNotesOpen()) closeNotes();
+    else openNotes();
   }
 
   function resetParams() {
@@ -398,6 +453,87 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
       .join("")}</ul>`;
   }
 
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function getKnowledge(id) {
+    return window.HUNTER_KNOWLEDGE?.entries?.[id] || null;
+  }
+
+  function renderKnowledge(ids) {
+    if (!els.knowledge) return;
+    if (!ids || !ids.length) {
+      els.knowledge.innerHTML = "";
+      return;
+    }
+    const cards = ids
+      .map((id) => {
+        const entry = getKnowledge(id);
+        if (!entry) {
+          return `<div class="knowledge-card knowledge-card-miss"><strong>KB</strong> entry <code>${esc(id)}</code> não carregou</div>`;
+        }
+        const hyps = (entry.field?.hypotheses || []).slice(0, 3);
+        const tests = (entry.field?.tests || []).slice(0, 3);
+        const related = (entry.related || [])
+          .slice(0, 4)
+          .map((r) => {
+            const t = getKnowledge(r.id)?.title || r.id;
+            return `<span class="knowledge-pill">${esc(t)}</span>`;
+          })
+          .join("");
+        return `<article class="knowledge-card">
+          <header class="knowledge-card-head">
+            <span class="knowledge-kicker">Knowledge · Field</span>
+            <strong>${esc(entry.title)}</strong>
+            <span class="knowledge-meta">${esc(entry.kind)} · ${esc(entry.freshness)}</span>
+          </header>
+          <p class="knowledge-observe"><strong>Observe:</strong> ${esc(entry.field?.observe || entry.study?.summary || "")}</p>
+          ${
+            hyps.length
+              ? `<div class="knowledge-section"><span>Hipóteses</span><ul>${hyps
+                  .map((h) => `<li>${esc(h)}</li>`)
+                  .join("")}</ul></div>`
+              : ""
+          }
+          ${
+            tests.length
+              ? `<div class="knowledge-section"><span>Testes (mindset)</span><ul>${tests
+                  .map((t) => `<li>${esc(t)}</li>`)
+                  .join("")}</ul></div>`
+              : ""
+          }
+          ${related ? `<div class="knowledge-related">${related}</div>` : ""}
+          <details class="knowledge-details">
+            <summary>Ver entry completa (Study + Field)</summary>
+            <div class="knowledge-full">
+              <h4>Study</h4>
+              <p>${esc(entry.study?.summary || "")}</p>
+              ${entry.study?.howItWorks ? `<p><strong>Como funciona:</strong> ${esc(entry.study.howItWorks)}</p>` : ""}
+              ${entry.study?.limitations ? `<p><strong>Limitações:</strong> ${esc(entry.study.limitations)}</p>` : ""}
+              <h4>Field</h4>
+              ${entry.field?.validate ? `<p><strong>Validar:</strong> ${esc(entry.field.validate)}</p>` : ""}
+              ${entry.field?.evidence ? `<p><strong>Evidência:</strong> ${esc(entry.field.evidence)}</p>` : ""}
+              ${entry.field?.impact ? `<p><strong>Impacto:</strong> ${esc(entry.field.impact)}</p>` : ""}
+              ${entry.field?.remediation ? `<p><strong>Remediação:</strong> ${esc(entry.field.remediation)}</p>` : ""}
+              ${entry.field?.retest ? `<p><strong>Retest:</strong> ${esc(entry.field.retest)}</p>` : ""}
+              ${
+                (entry.field?.tools || []).length
+                  ? `<p><strong>Tools:</strong> ${esc(entry.field.tools.join(", "))}</p>`
+                  : ""
+              }
+            </div>
+          </details>
+        </article>`;
+      })
+      .join("");
+    els.knowledge.innerHTML = cards;
+  }
+
   function render() {
     const node = pb.nodes[state.nodeId];
     if (!node) return;
@@ -406,6 +542,7 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     els.say.textContent = node.say || "";
     els.say.className =
       "say" + (node.tone === "warn" ? " warn" : node.tone === "danger" ? " danger" : "");
+    renderKnowledge(node.knowledgeIds);
     els.blocks.innerHTML = renderBlocks(node.blocks);
     els.choices.innerHTML = renderChoices(node.choices);
     renderCrumb();
@@ -438,6 +575,14 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     if (copyBtn) {
       const pre = document.getElementById(copyBtn.getAttribute("data-copy"));
       const raw = decodeURIComponent(pre?.getAttribute("data-raw") || "");
+      if (cmdNeedsIp(raw) && sessionNeedsSetup()) {
+        promptSessionSetup("Define o IP do alvo antes de copiar");
+        return;
+      }
+      if (cmdNeedsIp(raw) && /\$LHOST|TEU_IP_DE_ATAQUE|TEU_LHOST/.test(raw) && !(session.lhost || "").trim()) {
+        promptSessionSetup("Define o LHOST antes de copiar");
+        return;
+      }
       const text = hydrateCmd(raw || pre?.innerText || "");
       copyText(text, "Comando copiado").then(() => {
         copyBtn.classList.add("ok");
@@ -456,6 +601,10 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
         closeParams();
         return;
       }
+      if (isNotesOpen()) {
+        closeNotes();
+        return;
+      }
       if (isHelpOpen()) {
         closeHelp();
         return;
@@ -470,6 +619,11 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     }
     if (e.key === "?" || (e.shiftKey && e.key === "/")) {
       toggleHelp();
+      return;
+    }
+    if (e.key === "n" || e.key === "N") {
+      e.preventDefault();
+      toggleNotes();
       return;
     }
     if (e.key === "p" || e.key === "P") {
@@ -521,10 +675,14 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     e.stopPropagation();
     closeHelp();
   });
-  document.querySelector("[data-compact]")?.addEventListener("click", () => {
-    document.body.classList.toggle("compact");
-    localStorage.setItem(COMPACT_KEY, document.body.classList.contains("compact") ? "1" : "0");
+
+  document.querySelectorAll("[data-notes-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => toggleNotes());
   });
+  document.querySelectorAll("[data-notes-close]").forEach((btn) => {
+    btn.addEventListener("click", closeNotes);
+  });
+  els.notesBackdrop?.addEventListener("click", closeNotes);
 
   // tips (?) nos parâmetros — clique pra fixar no mobile
   document.addEventListener("click", (e) => {
@@ -547,10 +705,6 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     });
   }
 
-  if (localStorage.getItem(COMPACT_KEY) === "1" || localStorage.getItem(LEGACY.compact) === "1") {
-    document.body.classList.add("compact");
-  }
-
   fillSessionInputs();
 
   const hash = location.hash.replace("#", "");
@@ -559,4 +713,14 @@ echo "Alvo: $IP | $DOMAIN | $TARGET | LHOST $LHOST:$LPORT"`;
     if (!state.trail.includes(hash)) state.trail.push(hash);
   }
   render();
+
+  // restaura notas abertas da sessão anterior (texto sempre persiste)
+  if (localStorage.getItem(NOTES_OPEN_KEY) === "1") openNotes();
+
+  // first-run soft: sem IP → abre params (não bloqueia a árvore)
+  if (sessionNeedsSetup()) {
+    setTimeout(() => {
+      if (sessionNeedsSetup()) promptSessionSetup("First-run · seta IP / alvo / LHOST");
+    }, 400);
+  }
 })();

