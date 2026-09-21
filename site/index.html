@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Lucas Cedro Temponi — penetration testing in training. Web application and network security. Write-ups, eJPT track, tools." />
+  <title>Lucas Cedro Temponi — Offensive Security</title>
+  <link rel="stylesheet" href="css/garage.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <style>
+    :root { --steel: #8aa4d6; }
+
+    a.skip {
+      position: absolute;
+      left: 0.75rem;
+      top: -3rem;
+      z-index: 200;
+      background: var(--signal);
+      color: #fff;
+      padding: 0.4rem 0.7rem;
+      font-size: 0.78rem;
+    }
+    a.skip:focus { top: 0.75rem; }
+
+    :focus-visible {
+      outline: 2px solid var(--ice);
+      outline-offset: 3px;
+    }
+
+    body.home .scanlines { opacity: 0.16; }
+    body.home.crt::after { opacity: 0.55; }
+
+    body.home .den {
+      max-width: 1080px;
+      grid-template-rows: auto auto auto;
+      padding-top: 1.75rem;
+    }
+    body.home .den-main {
+      min-height: 0;
+      justify-content: flex-start;
+      padding: 0.5rem 0 2.25rem;
+    }
+    body.home .den-board {
+      grid-template-columns: auto minmax(18rem, 1fr);
+      align-items: center;
+      gap: 1.5rem 2rem;
+      margin-bottom: 1.75rem;
+    }
+    body.home .den-board-text { min-width: min-content; }
+    body.home .den-hero-avatar {
+      width: clamp(132px, 18vw, 176px);
+      height: clamp(132px, 18vw, 176px);
+    }
+    body.home .den-main h1 {
+      font-size: clamp(2.6rem, 6.2vw, 4.35rem);
+      letter-spacing: 0.03em;
+      line-height: 0.92;
+      white-space: nowrap;
+    }
+    body.home .den-tag {
+      margin: 0.55rem 0 0;
+      color: var(--ink-dim);
+      font-size: 0.88rem;
+      letter-spacing: 0.02em;
+    }
+
+    .den-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-top: 0.65rem;
+      color: var(--amber);
+      font-size: 0.78rem;
+      letter-spacing: 0.03em;
+    }
+    .den-status .dot {
+      width: 7px;
+      height: 7px;
+      background: var(--amber);
+      box-shadow: 0 0 8px var(--amber);
+      flex-shrink: 0;
+    }
+    .den-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.2rem 0.15rem;
+      margin: 0.95rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .den-links li { display: inline-flex; align-items: center; }
+    .den-links li + li::before {
+      content: "·";
+      color: var(--line-strong);
+      margin: 0 0.7rem;
+    }
+    .den-links a {
+      color: var(--ink-dim);
+      text-decoration: none;
+      font-size: 0.8rem;
+      border-bottom: 1px solid transparent;
+    }
+    .den-links a:hover,
+    .den-links a:focus-visible {
+      color: var(--ice);
+      border-bottom-color: var(--ice);
+      text-decoration: none;
+    }
+
+    body.home .den-term {
+      margin-bottom: 1.35rem;
+    }
+    body.home .term-log {
+      height: 14.5rem;
+      max-height: 14.5rem;
+    }
+    .term-log p { white-space: pre-wrap; }
+    .term-line input:focus { outline: none; caret-color: transparent; }
+    .den-term:focus-within {
+      border-color: var(--signal);
+      box-shadow: 4px 4px 0 rgba(225, 29, 46, 0.4);
+    }
+    .term-field {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .term-mirror {
+      position: absolute;
+      left: 0;
+      top: 0;
+      visibility: hidden;
+      white-space: pre;
+      font: inherit;
+      font-size: 0.82rem;
+      pointer-events: none;
+    }
+    .term-block {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 0.72em;
+      height: 1.05em;
+      transform: translateY(-50%);
+      background: var(--signal);
+      pointer-events: none;
+      animation: cmd-blink 1.06s step-end infinite;
+    }
+    .term-field:not(:focus-within) .term-block {
+      animation: none;
+      opacity: 0.45;
+    }
+    @keyframes cmd-blink {
+      50% { opacity: 0; }
+    }
+
+    .dossier {
+      position: relative;
+      z-index: 1;
+      margin-top: 0.25rem;
+      padding: 2.4rem 0 1.25rem;
+      border-top: 1px solid var(--line-strong);
+    }
+    .dossier section {
+      margin: 0 0 2.85rem;
+    }
+    .dossier section:last-child { margin-bottom: 0; }
+    .sec-head {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 0 0 1.2rem;
+    }
+    .sec-head h2 {
+      margin: 0;
+      flex: 0 0 auto;
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .sec-head::after {
+      content: "";
+      flex: 1 1 auto;
+      height: 1px;
+      background: var(--line);
+    }
+    .dossier-about p {
+      margin: 0 0 1rem;
+      max-width: none;
+      color: var(--ink);
+      font-size: 0.92rem;
+      line-height: 1.65;
+    }
+    .dossier-about p:last-child {
+      margin-bottom: 0;
+      color: var(--ink-dim);
+    }
+
+    .writeup {
+      display: grid;
+      grid-template-columns: 5.25rem minmax(0, 1fr);
+      column-gap: 1.35rem;
+      padding: 1.35rem 0 1.45rem 1.15rem;
+      border-bottom: 1px solid var(--line);
+      border-left: 2px solid var(--ice);
+    }
+    .writeup:last-of-type { border-bottom: 0; }
+    .writeup-cat { padding-top: 0.18rem; }
+    .writeup-body h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+      line-height: 1.3;
+    }
+    .writeup-body h3 a {
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .writeup-body h3 a:hover { color: var(--ice); }
+    .writeup-meta {
+      margin: 0.35rem 0 0;
+      font-size: 0.74rem;
+      color: var(--ink-faint);
+    }
+    .writeup-body p {
+      margin: 0.65rem 0 0;
+      max-width: none;
+      color: var(--ink-dim);
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 0.18rem 0.42rem;
+      border: 1px solid currentColor;
+      white-space: nowrap;
+    }
+    .tag-web { color: var(--ice); }
+    .writeup-web { border-left-color: var(--ice); }
+    .tag-network { color: var(--amber); }
+    .writeup-network { border-left-color: var(--amber); }
+    .tag-auditing { color: var(--signal); }
+    .writeup-auditing { border-left-color: var(--signal); }
+    .tag-recon { color: var(--steel); }
+    .writeup-recon { border-left-color: var(--steel); }
+    .dossier-note {
+      margin: 1.1rem 0 0;
+      color: var(--ink-faint);
+      font-size: 0.78rem;
+    }
+    .stack-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .stack-list li {
+      color: var(--ink-dim);
+      font-size: 0.8rem;
+      padding: 0.38rem 0.62rem;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    body.home .den-foot {
+      text-transform: none;
+      letter-spacing: 0.02em;
+      color: var(--ink-faint);
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 720px) {
+      body.home .den-board {
+        grid-template-columns: 1fr;
+        align-items: start;
+        gap: 1.1rem;
+      }
+      body.home .den-board-text { min-width: 0; }
+      body.home .den-main h1 {
+        white-space: nowrap;
+        font-size: clamp(2.05rem, 11vw, 2.85rem);
+      }
+      body.home .term-log { height: 12rem; max-height: 12rem; }
+      .writeup {
+        grid-template-columns: 1fr;
+        row-gap: 0.45rem;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .den-status .dot { box-shadow: none; }
+      .term-block { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body class="home crt">
+  <a class="skip" href="#writeups">Skip to write-ups</a>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <div class="den">
+    <main class="den-main den-hack">
+      <div class="den-board">
+        <img src="assets/avatar.jpg" alt="Phantonite — red hooded operator mark" class="den-hero-avatar" width="200" height="200" />
+        <div class="den-board-text">
+          <h1>LUCAS <span>CEDRO</span></h1>
+          <p class="den-tag">pentest in training · web + network</p>
+          <p class="den-status"><span class="dot" aria-hidden="true"></span>eJPT (INE) · current focus: Metasploit &amp; Pivoting</p>
+          <ul class="den-links">
+            <li><a href="https://www.linkedin.com/in/olucascedro" target="_blank" rel="noopener">LinkedIn</a></li>
+            <li><a href="https://tryhackme.com/p/Phantonite" target="_blank" rel="noopener">TryHackMe</a></li>
+            <li><a href="https://medium.com/@eng.lucascedro" target="_blank" rel="noopener">Medium</a></li>
+            <li><a href="mailto:eng.lucascedro@gmail.com">Email</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="den-term" data-term>
+        <div class="term-log" data-term-log>
+          <p><span class="p">phantonite@garage</span>:<span class="w">~</span>$</p>
+          <p>type <span class="term-hl">help</span></p>
+        </div>
+        <form class="term-line" data-term-form autocomplete="off">
+          <label class="term-prompt" for="den-cmd">
+            <span class="p">phantonite@garage</span>:<span class="w">~</span>$
+          </label>
+          <div class="term-field">
+            <span class="term-mirror" data-term-mirror aria-hidden="true"></span>
+            <input id="den-cmd" data-term-input type="text" spellcheck="false" maxlength="80" aria-label="terminal command" />
+            <span class="term-block" data-term-caret aria-hidden="true"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="den-actions">
+        <a class="btn btn-primary" href="#writeups">[ WRITE-UPS ]</a>
+        <a class="btn btn-ghost" href="https://www.linkedin.com/in/olucascedro" target="_blank" rel="noopener">[ LINKEDIN ]</a>
+      </div>
+    </main>
+
+    <div class="dossier">
+      <section class="dossier-about" aria-labelledby="about-h">
+        <div class="sec-head"><h2 id="about-h">About</h2></div>
+        <p>Transitioning from data analytics/engineering into offensive security, with hands-on practice in reconnaissance, enumeration, vulnerability analysis, and fundamental exploitation. Evidence-based technical documentation is part of the process — every write-up below is a lab solved end to end, with reasoning explained, not just commands pasted.</p>
+        <p>Practice environments: TryHackMe (Premium) and PortSwigger Web Security Academy. Current certification track: eJPT (INE).</p>
+      </section>
+
+      <section id="writeups" aria-labelledby="wu-h">
+        <div class="sec-head"><h2 id="wu-h">Write-ups</h2></div>
+        <div data-writeups></div>
+        <p class="dossier-note">More write-ups added as they're published.</p>
+      </section>
+
+      <section aria-labelledby="stack-h">
+        <div class="sec-head"><h2 id="stack-h">Tools &amp; stack</h2></div>
+        <ul class="stack-list">
+          <li>Nmap</li>
+          <li>Metasploit</li>
+          <li>Burp Suite</li>
+          <li>Linux/Kali</li>
+          <li>Python</li>
+          <li>SQL</li>
+          <li>Git</li>
+          <li>Bash</li>
+        </ul>
+      </section>
+    </div>
+
+    <footer class="den-foot">
+      <span>Manually maintained — plain HTML, no build step.</span>
+    </footer>
+  </div>
+
+  <script>
+    /* Add a write-up: one object in writeups[]. Nothing else. */
+    window.PORTFOLIO = {
+      handle: "phantonite",
+      host: "garage",
+      name: "Lucas Cedro Temponi",
+      roleShort: "pentest in training · web + network",
+      from: "data engineering → offensive security",
+      cert: "eJPT (INE)",
+      focus: "Metasploit & Pivoting",
+      labs: "TryHackMe Premium · PortSwigger Web Security Academy",
+      about: [
+        "Transitioning from data analytics/engineering into offensive security, with hands-on practice in reconnaissance, enumeration, vulnerability analysis, and fundamental exploitation. Evidence-based technical documentation is part of the process — every write-up below is a lab solved end to end, with reasoning explained, not just commands pasted.",
+        "Practice environments: TryHackMe (Premium) and PortSwigger Web Security Academy. Current certification track: eJPT (INE)."
+      ],
+      stack: ["Nmap", "Metasploit", "Burp Suite", "Linux/Kali", "Python", "SQL", "Git", "Bash"],
+      links: {
+        linkedin: "https://www.linkedin.com/in/olucascedro",
+        thm: "https://tryhackme.com/p/Phantonite",
+        medium: "https://medium.com/@eng.lucascedro",
+        email: "eng.lucascedro@gmail.com"
+      },
+      writeups: [
+        {
+          id: "blind-sqli",
+          title: "Blind SQL Injection via Conditional Responses",
+          url: "https://medium.com/@eng.lucascedro/blind-sql-injection-with-conditional-responses-edd9daeb975f",
+          category: "web",
+          platform: "PortSwigger Web Security Academy",
+          tools: "Burp Suite (Intruder)",
+          description: "Exploited a blind SQL injection using the application's conditional responses, extracting the administrator's password character-by-character with Burp Intruder."
+        }
+      ]
+    };
+
+    (function renderWriteups() {
+      const root = document.querySelector("[data-writeups]");
+      if (!root) return;
+      const list = (window.PORTFOLIO && window.PORTFOLIO.writeups) || [];
+      root.innerHTML = "";
+      list.forEach((w) => {
+        const cat = (w.category || "web").toLowerCase();
+        const art = document.createElement("article");
+        art.className = "writeup writeup-" + cat;
+        art.innerHTML =
+          "<div class=\"writeup-cat\"><span class=\"tag tag-" + cat + "\">" + cat + "</span></div>" +
+          "<div class=\"writeup-body\">" +
+            "<h3><a href=\"" + w.url + "\" target=\"_blank\" rel=\"noopener\">" + w.title + "</a></h3>" +
+            "<p class=\"writeup-meta\">" + w.platform + " · " + w.tools + "</p>" +
+            "<p>" + w.description + "</p>" +
+          "</div>";
+        root.appendChild(art);
+      });
+    })();
+  </script>
+  <script src="js/pet.js"></script>
+  <script src="js/den.js"></script>
+</body>
+</html>
