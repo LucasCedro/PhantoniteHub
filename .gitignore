@@ -18,3 +18,5 @@ credentials.json
 # local junk
 *.log
 node_modules/
+__pycache__/
+*.pyc

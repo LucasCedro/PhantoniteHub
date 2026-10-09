@@ -377,7 +377,7 @@ echo "$JWT" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null; echo`,
         whenToLook:
           "Login, busca, filtros, sort, id em path/query, relatórios, imports, qualquer parâmetro que cheire a ir para o banco. Também second-order (dado guardado e reutilizado em query depois).",
         howItWorks:
-          "Concatenação/string building ou escape incorreto. Boolean/time/error-based e UNION extraem ou alteram dados. Em alguns stacks há stacked queries / RCE via DB — depende do SGBD e permissões. ORM ≠ imunidade (raw queries, order by dinâmico).",
+          "Concatenação/string building ou escape incorreto. Famílias: lógica (WHERE/login), UNION, examine (version/schema), blind boolean/error/time, error-based visível, OAST, bypass (WAF/2º ordem/stacked). No HUB: SQLi Advice v3 — roteiro + queries por técnica. ORM ≠ imunidade.",
         limitations:
           "WAF e parameterized queries bem feitos reduzem. Nem todo erro 500 é SQLi. Exfiltração massiva pode violar RoE — preferir prova mínima.",
         prerequisites: ["databases", "trust-boundaries", "http"],
@@ -398,29 +398,28 @@ echo "$JWT" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null; echo`,
           "Second-order: o sink não é o mesmo request do source.",
         ],
         tests: [
-          "Baseline estável do request (Burp).",
-          "Sondas mínimas: ' \" ; -- /* e observar erro/diff (não dump).",
-          "Confirmar injeção com boolean ou time controlado (impacto baixo).",
-          "Se UNION: enumerar colunas com cuidado; extrair só o necessário pra prova (ex.: versão DB / user atual).",
-          "Mapear sink (qual param). Testar authz: SQLi que lê outro tenant = impacto maior.",
-          "sqlmap só depois do ponto confirmado manualmente e com escopo/rate alinhados ao RoE.",
+          "web-sqli → SQLi Advice: filtrar família (detect/UNION/blind/time/OAST…).",
+          "Confirmar oracle (UI / 500 / delay / Collaborator) antes de Intruder.",
+          "Blind bool: LENGTH + SUBSTRING; Oracle error: dual + CASE/1/0 + SUBSTR.",
+          "Time/OAST quando não há diff de body. Visible error se a msg vaza dado.",
+          "sqlmap só com ponto (-r, --technique=BEUSTQ).",
         ],
-        tools: ["Burp Suite", "curl", "sqlmap (assistido)", "logging do app (se disponível no engajamento)"],
+        tools: ["Burp Suite", "SQLi Advice (HUB)", "curl", "sqlmap (assistido)"],
         commands: [
+          `# No HUB: nó SQL injection → painel SQLi Advice (copy plain/repeater)`,
           `curl -s -G "$TARGET/items" --data-urlencode "id=1"`,
-          `# após confirmar o ponto no Burp, salvar request:
-# sqlmap -r requests/sqli.req --batch -p id`,
+          `# sqlmap -r requests/sqli.req --batch -p id`,
         ],
         validate:
-          "Prova: diferença determinística controlada (boolean/time) ou dado que só o DB conheceria (versão, user DB) sem autorização legítima. Não confundir WAF block com ‘não vulnerável’.",
+          "Prova: diferença determinística (boolean/time) ou dado só do DB (versão/user) sem authz. WAF block ≠ ‘não vulnerável’.",
         evidence:
-          "Raw request/response; descrição do sink; resultado mínimo (ex.: string de versão). Marcar se foi só detection ou também leitura de dados sensíveis.",
+          "Raw request/response; sink; nº de colunas; resultado mínimo. Marcar detection vs leitura sensível.",
         impact:
-          "Leitura/alteração/deleção de dados, bypass de auth, em pior caso RCE via DB — conforme privilégios da conta da aplicação.",
+          "Leitura/alteração/deleção, bypass auth, em pior caso RCE via DB — conforme privilégios da app.",
         remediation:
-          "Queries parametrizadas / prepared statements em todo sink; evitar SQL dinâmico em identifiers (whitelist de colunas); least privilege no DB; WAF como defesa em profundidade, não única.",
+          "Prepared statements em todo sink; whitelist em identifiers; least privilege no DB; WAF só como defesa em profundidade.",
         retest:
-          "Repetir sonda no mesmo sink + regressão em params vizinhos; confirmar prepared statements no código se o cliente fornecer.",
+          "Repetir sonda no mesmo sink + params vizinhos; confirmar binding no código se disponível.",
       },
       related: [
         { id: "databases", rel: "foundational" },

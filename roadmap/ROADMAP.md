@@ -6,7 +6,7 @@ Guia pessoal de pentest (HTML/CSS/JS). Sem backend obrigatório. Sem intenção 
 **Paleta:** 60% preto · 30% vermelho · 10% ciano `#00D4FF`.
 
 **Fases (6):** ver [`docs/fases/README.md`](docs/fases/README.md) — `0 → 1 → 1.5 → 2 → 3 → 4`.  
-**ADR:** [`docs/ADR-001-knowledge-architecture.md`](docs/ADR-001-knowledge-architecture.md)  
+**ADR:** [`docs/ADR-001-knowledge-architecture.md`](docs/ADR-001-knowledge-architecture.md) · [`docs/ADR-002-paste-jump.md`](docs/ADR-002-paste-jump.md)  
 **KB schema:** [`data/knowledge/schema.md`](data/knowledge/schema.md) · registry `data/knowledge/registry.js`
 
 ### Freeze (Fase 1)
@@ -21,8 +21,8 @@ Ordem de valor/hora (atualizada):
 
 1. **Knowledge architecture** + WebSec piloto + Foundations mínimas (Fase 1) — *FEITO* ([01-DONE](docs/fases/01-DONE.md))
 2. **Content QA / Study·Field / gate lab** (Fase 1.5) — *FEITO* ([01.5-DONE](docs/fases/01.5-DONE.md)); gate = checklist do dono
-3. **Colar output → salto** sem LLM (Fase 2) — *próxima* ([pack](docs/prompts-fase2/README.md))
-4. **Copiloto** (Fase 3) — só depois da base boa
+3. **Colar output → salto** sem LLM (Fase 2) — *FEITO* ([02-DONE](docs/fases/02-DONE.md))
+4. **Copiloto** (Fase 3) — *EM CURSO* MVP paste híbrido ([ADR-003](docs/ADR-003-paste-hybrid-llm.md))
 5. **Evidence / reporting** (Fase 4)
 
 Não pular. Copiloto cedo = chat bonito em cima de árvore/KB ruim.
@@ -76,19 +76,19 @@ Objetivo: playbook que aguenta engajamento web + host + AD light + cloud light +
 
 ---
 
-## Fase 2 — Colar output → salto
+## Fase 2 — Colar output → salto (**FEITO** · [`02-DONE`](docs/fases/02-DONE.md))
 
 Objetivo: tu cola stderr/stdout e o HUB sugere o próximo nó (regras, sem LLM).
 
-- [ ] UI: caixa “Colar output do terminal”
-- [ ] Matcher de padrões (timeout, connection refused, 401/403, SSL, SMB signing, Kerberos, WAF…)
-- [ ] Ação: `goto_node` sugerido + botão confirmar
-- [ ] Biblioteca `data/error-map.js` (padrão → nó + dica)
-- [ ] Ligar erros ↔ ramos novos da Fase 1
+- [x] UI: caixa “Colar output do terminal” (PASTE.LOG · `L`)
+- [x] Matcher de padrões (timeout, connection refused, 401/403, SSL, SMB signing, Kerberos, WAF…)
+- [x] Ação: `goto_node` sugerido + botão confirmar
+- [x] Biblioteca `data/error-map.js` (padrão → nó + dica) v0.2.0 · 25 rules
+- [x] Ligar erros ↔ ramos existentes (WebSec + serviços; sem nós novos)
 
 ### Critério de pronto
 
-3 erros reais que tu já tomou no Kali caem no matcher certo.
+3 erros reais que tu já tomou no Kali caem no matcher certo. — coberto por `scripts/test-error-map.js` + uso em lab.
 
 ---
 
@@ -162,6 +162,14 @@ Perguntas do tipo “ajusta LHOST e me manda pro ramo shell” funcionam com con
 | 2026-08-28 | Prompt 06: Fase 1 fechada → handoff 1.5 (`docs/fases/01-DONE.md`) |
 | 2026-08-28 | Fase 1.5: toggle Study/Field + gate lab checklist (`01.5-DONE`) |
 | 2026-08-28 | Drop `prompts-fase1`; add `docs/prompts-fase2` pack (paste→jump) |
+| 2026-08-28 | ADR-002 paste→jump (matcher sem LLM; confirm before goto) |
+| 2026-08-28 | Seed `data/error-map.js` v0.1.0 (12 rules) |
+| 2026-08-28 | Prompt 03: PASTE.LOG UI + stub analyze (`L`) |
+| 2026-08-28 | Prompt 04: matchOutput + confirm goto (`test-error-map.js`) |
+| 2026-08-28 | Prompt 05: error-map v0.2.0 (25 rules · WebSec/services wire) |
+| 2026-08-28 | Prompt 06: Fase 2 fechada → handoff Fase 3 (`docs/fases/02-DONE.md`) |
+| 2026-08-29 | Ports map UX: search + cards; error-map v0.3.0 (Kali-real rules) |
+| 2026-08-29 | ADR-003 + MVP paste híbrido (Analisar com IA · Ollama-first) |
 
 ---
 

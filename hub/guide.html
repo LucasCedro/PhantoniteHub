@@ -47,6 +47,7 @@
         </button>
         <div class="rail-tools">
           <button type="button" data-help-toggle title="Atalhos">?</button>
+          <button type="button" data-paste-toggle title="Colar output (L)">L</button>
           <button type="button" data-notes-toggle title="Bloco de notas (N)">✎</button>
           <button type="button" data-reset title="Zerar trilha">↺</button>
         </div>
@@ -64,15 +65,43 @@
       <div class="say" data-say></div>
       <div data-knowledge></div>
       <div data-blocks></div>
+      <div data-sqli-advice hidden></div>
       <h2 class="node-kicker" style="margin-top:1.5rem">Próximo passo</h2>
       <div class="choices" data-choices></div>
     </main>
+
 
     <aside class="map">
       <h3>Árvore</h3>
       <div data-mini></div>
     </aside>
   </div>
+
+  <!-- Colar output (paste → jump) -->
+  <div class="paste-backdrop" data-paste-close hidden></div>
+  <aside class="paste-drawer" data-paste-drawer hidden aria-label="Colar output do terminal" role="dialog" aria-modal="true">
+    <header class="paste-head">
+      <div class="paste-head-main">
+        <h2>&gt; PASTE.LOG</h2>
+        <span class="paste-head-note">regex primeiro · miss → Analisar com IA · Ir → confirma</span>
+      </div>
+      <button type="button" class="paste-x" data-paste-close aria-label="Fechar">X</button>
+    </header>
+    <textarea
+      class="paste-pad"
+      data-paste-input
+      spellcheck="false"
+      placeholder="Cola output do Kali (erro OU enum: gobuster, nmap, curl…).&#10;&#10;1) Analisar = regex (error-map)&#10;2) Se nada casar → Analisar com IA (Ollama)&#10;3) Ir → confirma salto (+ params)"
+    ></textarea>
+    <div class="paste-actions">
+      <button type="button" class="paste-act paste-act-primary" data-paste-analyze>[ analisar ]</button>
+      <button type="button" class="paste-act" data-paste-clear>[ limpar ]</button>
+      <button type="button" class="paste-act paste-act-mute" data-paste-close>[ close ]</button>
+    </div>
+    <div class="paste-result" data-paste-result aria-live="polite">
+      <p class="paste-result-empty">Cola output → Analisar. Erro clássico = salto direto. Enum (gobuster/nmap) = miss → Analisar com IA.</p>
+    </div>
+  </aside>
 
   <!-- Bloco de notas -->
   <div class="notes-backdrop" data-notes-close hidden></div>
@@ -185,6 +214,24 @@
           </label>
         </div>
       </section>
+
+      <section class="params-section">
+        <h3>[ copiloto / LLM ]</h3>
+        <div class="params-grid cols-2">
+          <label class="field">
+            <span class="field-name">LLM base URL <button type="button" class="tip" data-tip="Groq (recomendado): http://127.0.0.1:8787 com node scripts/llm-proxy.js · Ollama direto: http://127.0.0.1:11434">?</button></span>
+            <input data-field="llm_base_url" placeholder="http://127.0.0.1:8787" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span class="field-name">LLM model <button type="button" class="tip" data-tip="Groq atual: openai/gpt-oss-20b (llama-3.1-8b-instant foi descontinuado)">?</button></span>
+            <input data-field="llm_model" placeholder="openai/gpt-oss-20b" spellcheck="false" />
+          </label>
+          <label class="field wide" data-llm-key-wrap hidden>
+            <span class="field-name">LLM API key <button type="button" class="tip" data-tip="Key Groq (gsk_…). Com proxy podes pôr aqui OU no env GROQ_API_KEY. Nunca commits a key.">?</button></span>
+            <input data-field="llm_api_key" type="password" placeholder="sk-…" spellcheck="false" autocomplete="off" />
+          </label>
+        </div>
+      </section>
     </div>
 
     <footer class="params-foot">
@@ -206,6 +253,7 @@
       <dt>P</dt><dd>Mapa de portas</dd>
       <dt>O</dt><dd>Abrir parâmetros</dd>
       <dt>N</dt><dd>Bloco de notas</dd>
+      <dt>L</dt><dd>Colar output (paste→jump)</dd>
       <dt>E</dt><dd>Exports → Kali</dd>
       <dt>K</dt><dd>Study ↔ Field (se nó tem KB)</dd>
       <dt>?</dt><dd>Abrir / fechar atalhos</dd>
@@ -218,6 +266,10 @@
   <script src="data/playbook.js"></script>
   <script src="data/playbook-extra.js"></script>
   <script src="data/knowledge/registry.js"></script>
+  <script src="data/sqli-payloads.js"></script>
+  <script src="data/error-map.js"></script>
+  <script src="data/llm-prompt.js"></script>
+  <script src="data/llm-fixtures.js"></script>
   <script src="js/guide.js"></script>
   <script src="js/pet.js"></script>
 </body>

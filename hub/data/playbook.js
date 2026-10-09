@@ -6,7 +6,7 @@ window.HUNTER_PLAYBOOK = {
   meta: {
     name: "Phantonite HUB",
     version: "1.1.0",
-    stack: ["gobuster", "wfuzz", "Burp Community", "rlwrap nc", "hydra", "john", "hashcat", "sqlmap", "msf"],
+    stack: ["gobuster", "enum4linux-ng", "wfuzz", "Burp Community", "rlwrap nc", "hydra", "john", "hashcat", "sqlmap", "msf"],
   },
 
   /* ordem do minimap */
@@ -14,7 +14,7 @@ window.HUNTER_PLAYBOOK = {
     { id: "roe", label: "Escopo" },
     { id: "session", label: "Sessão" },
     { id: "alive", label: "Alvo vivo?" },
-    { id: "trio", label: "Trio recon" },
+    { id: "trio", label: "Quarteto recon" },
     { id: "ports", label: "Mapa de portas", children: [
       { id: "web", label: "Web" },
       { id: "web-auth", label: "Auth" },
@@ -98,7 +98,7 @@ echo "Alvo: $IP | $TARGET | LHOST $LHOST:$LPORT"`,
           title: "Onde cada coisa vive",
           html: `<div class="table-wrap"><table>
             <tr><th>Ferramenta</th><th>Onde</th></tr>
-            <tr><td>export, nmap, gobuster, curl, rlwrap nc</td><td>Terminal bash</td></tr>
+            <tr><td>export, dig, nmap, gobuster, enum4linux-ng, curl, rlwrap nc</td><td>Terminal bash</td></tr>
             <tr><td>use / set / run / sessions</td><td>msfconsole</td></tr>
             <tr><td>Proxy / Repeater / history</td><td>Burp Community</td></tr>
           </table></div>`,
@@ -124,13 +124,13 @@ curl -sI "$TARGET"`,
           title: "Como ler",
           html: `<ul>
             <li><strong>Ping falhou, curl ok</strong> — normal (ICMP bloqueado). Segue.</li>
-            <li><strong>Os dois falharam</strong> — VPN, IP ou rota. Não inicia o trio ainda.</li>
+            <li><strong>Os dois falharam</strong> — VPN, IP ou rota. Não inicia o quarteto ainda.</li>
             <li><strong>curl com HTTPS quebrado</strong> — tenta <code>TARGET=https://…</code> ou <code>-k</code> só pra debug.</li>
           </ul>`,
         },
       ],
       choices: [
-        { label: "Alvo alcançável — rodar o trio", hint: "dig + nmap + gobuster", to: "trio" },
+        { label: "Alvo alcançável — rodar o quarteto", hint: "dig + nmap + gobuster + enum4linux-ng", to: "trio" },
         { label: "Não alcanço o alvo", hint: "Diagnóstico de rota", to: "dead-target" },
       ],
     },
@@ -161,8 +161,8 @@ traceroute -n "$IP" | head`,
 
     trio: {
       phase: "Recon",
-      title: "O trio: dig · nmap · gobuster",
-      say: "Faz os três. Não escolhe favorito. Isso é o chão do engajamento.",
+      title: "O quarteto: dig · nmap · gobuster · enum4linux-ng",
+      say: "Faz os quatro. Não escolhe favorito. Isso é o chão do engajamento — SMB incluso quando 139/445 abrir.",
       blocks: [
         {
           title: "Dig (se houver domínio)",
@@ -196,6 +196,14 @@ dig "$DOMAIN" TXT +short`,
           label: "bash",
           why: "Wordlist tu escolhe por engajamento. Outra porta web (8080, 1234)? Repete o gobuster nela.",
         },
+        {
+          title: "enum4linux-ng — SMB / Samba",
+          cmd: `enum4linux-ng -A "$IP"
+# null session explícito (se -A sozinho falhar no auth):
+# enum4linux-ng -A -u '' -p '' "$IP"`,
+          label: "bash",
+          why: "Users, shares, SIDs, OS, policy. Se 139/445 fechado → pula. Windows/Samba aberto = obrigatório no quarteto (não espera o ramo SMB).",
+        },
       ],
       choices: [
         { label: "Li o nmap — escolher ramo por porta", hint: "Árvore de serviços", to: "ports" },
@@ -205,31 +213,19 @@ dig "$DOMAIN" TXT +short`,
     ports: {
       phase: "Decisão",
       title: "Mapa de portas — o que está aberto?",
-      say: "Clica no que bate com a saída do nmap. Vários serviços? Faz um ramo, anota, volta aqui, abre o próximo.",
+      say: "Hub de decisão: procura pela porta ou serviço, lê o card, entra no ramo. Vários serviços? Faz um, anota, volta (P), abre o próximo.",
       blocks: [
         {
-          title: "Atalho mental",
+          title: "Como usar este mapa",
           html: `<ul>
-            <li>Existe HTTP? <strong>Web primeiro</strong> na maioria dos engajamentos de app.</li>
-            <li>Depois: serviço com <strong>versão antiga</strong> explícita.</li>
-            <li>Brute só com RoE e rate consciente.</li>
+            <li><strong>Busca</strong> — digita <code>445</code>, <code>tomcat</code>, <code>8080</code>, <code>jwt</code>…</li>
+            <li><strong>Card</strong> — portas típicas · quando escolher · 1 ação</li>
+            <li><strong>Ordem mental</strong> — HTTP/app primeiro na maioria dos labs; depois versão antiga óbvia; brute só com RoE</li>
+            <li><strong>Pulo</strong> — achaste Tomcat na 1234 enquanto olhavas 8080? Volta aqui (P) → card Tomcat · set RPORT</li>
           </ul>`,
         },
       ],
-      choices: [
-        { label: "80 / 443 / 8080 / HTTP", hint: "Aplicação web", to: "web" },
-        { label: "Login / Basic Auth / /login", hint: "Ramo de autenticação", to: "web-auth" },
-        { label: "Tomcat /manager", hint: "Deploy / MSF", to: "tomcat" },
-        { label: "445 / 139 · SMB", hint: "Shares, EternalBlue, psexec", to: "smb" },
-        { label: "22 · SSH", hint: "Credencial", to: "ssh" },
-        { label: "21 · FTP", hint: "Anonymous / upload", to: "ftp" },
-        { label: "3389 · RDP", hint: "Exposição + cred", to: "rdp" },
-        { label: "3306 · MySQL", hint: "DB exposto", to: "mysql" },
-        { label: "1433 · MSSQL", hint: "SQL Server", to: "mssql" },
-        { label: "25 / 587 · SMTP", hint: "Enum / relay", to: "smtp" },
-        { label: "Já tenho RCE — preciso de shell", hint: "Listener", to: "shell" },
-        { label: "Achado válido — reportar", hint: "Finding", to: "report" },
-      ],
+      choices: [], // preenchido em playbook-extra.js
     },
 
     /* ——— WEB ——— */
@@ -446,8 +442,10 @@ run`,
           cmd: `nmap -sV -p 139,445 --script smb-os-discovery,smb-security-mode,smb-enum-shares \\
   "$IP"
 
-smbclient -L "//$IP/" -N`,
+smbclient -L "//$IP/" -N
+enum4linux-ng -A "$IP"`,
           label: "bash",
+          why: "Se já rodou no quarteto, só aprofunda (credenciais conhecidas / shares específicos).",
         },
         {
           title: "Stack velho? EternalBlue (RoE!)",

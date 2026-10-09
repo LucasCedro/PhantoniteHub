@@ -1798,8 +1798,6 @@
   let frameIdx = 0;
   let lastFrameAt = 0;
   let raf = 0;
-  /** eat/play: one-shot + hold no último frame (anti loop-spam) */
-  let actionHold = false;
   let feedFlashUntil = 0;
   let blinkUntil = 0;
   let nextBlinkAt = 0;
@@ -2149,7 +2147,6 @@
           save(s);
         }
         pendingBoost = null;
-        actionHold = false;
         syncHud();
       }
     }
@@ -2192,12 +2189,7 @@
     else if (live.stage === "alfa") speed = 500;
     if (!lastFrameAt) lastFrameAt = ts;
     if (ts - lastFrameAt >= speed) {
-      // eat/play: one-shot + hold; sleep/idle/hib: loop
-      if (actionHold && (anim === "feed" || anim === "play")) {
-        if (frameIdx < frames.length - 1) frameIdx += 1;
-      } else {
-        frameIdx = (frameIdx + 1) % Math.max(1, frames.length);
-      }
+      frameIdx = (frameIdx + 1) % Math.max(1, frames.length);
       lastFrameAt = ts;
     }
 
@@ -2353,7 +2345,6 @@
     anim = "idle";
     busyUntil = 0;
     pendingBoost = null;
-    actionHold = false;
     feedFlashUntil = 0;
     blinkUntil = 0;
     nextBlinkAt = 0;
@@ -2403,7 +2394,6 @@
     anim = kind;
     frameIdx = 0;
     lastFrameAt = 0;
-    actionHold = kind === "feed" || kind === "play";
     blinkUntil = 0;
     nextBlinkAt = 0;
     busyUntil = now() + (ACTION_MS[kind] || 4000);
@@ -2434,7 +2424,6 @@
     anim = "idle";
     busyUntil = 0;
     pendingBoost = null;
-    actionHold = false;
     feedFlashUntil = 0;
     blinkUntil = 0;
     nextBlinkAt = 0;

@@ -13,7 +13,7 @@
   /* ——— META ——— */
   pb.meta.version = "2.1.0";
   pb.meta.stack = [
-    "gobuster", "ffuf", "wfuzz", "nuclei", "Burp Community",
+    "gobuster", "enum4linux-ng", "ffuf", "wfuzz", "nuclei", "Burp Community",
     "rlwrap nc", "hydra", "john", "hashcat", "sqlmap", "msf",
     "nxc/netexec", "impacket", "certipy", "bloodhound mindset",
     "responder", "linpeas", "winpeas", "kubectl", "aws cli concepts",
@@ -26,7 +26,7 @@
     { id: "session", label: "Sessão" },
     { id: "alive", label: "Alvo vivo?" },
     { id: "passive", label: "Recon passivo" },
-    { id: "trio", label: "Trio recon" },
+    { id: "trio", label: "Quarteto recon" },
     {
       id: "ports",
       label: "Mapa de portas",
@@ -145,7 +145,7 @@ curl -s "https://api.hackertarget.com/aslookup/?q=$IP"`,
         },
       ],
       choices: [
-        { label: "Passivo feito — trio ativo", hint: "dig + nmap + gobuster", to: "trio" },
+        { label: "Passivo feito — quarteto ativo", hint: "dig + nmap + gobuster + enum4linux-ng", to: "trio" },
         { label: "Achei secret/URL — reportar", to: "report" },
         { label: "Já tenho nmap — mapa de portas", to: "ports" },
       ],
@@ -993,7 +993,7 @@ dig axfr "$DOMAIN" @"$IP"
         },
       ],
       choices: [
-        { label: "Hosts novos → trio/ports", to: "ports" },
+        { label: "Hosts novos → quarteto/ports", to: "ports" },
         { label: "Passivo / subfinder", to: "passive" },
         { label: "AXFR = reportar", to: "report" },
       ],
@@ -1216,7 +1216,7 @@ nxc smb "$IP" -u user -H 'NTHASH' -x 'hostname'`,
           html: `<ul>
             <li>Segmento local / lab / broadcast no escopo?</li>
             <li>Não é ferramenta de internet-facing</li>
-            <li>Box HTB isolada → geralmente pula</li>
+            <li>Lab isolado sem broadcast útil → geralmente pula</li>
           </ul>`,
         },
         {
@@ -1511,34 +1511,46 @@ curl -s "$TARGET/page?file=php://filter/convert.base64-encode/resource=index.php
     "web-sqli": {
       phase: "Web",
       title: "SQL injection",
-      say: "Confirma manual no Repeater. sqlmap entra depois do ponto existir — não no escuro.",
+      say: "17 técnicas no SQLi Advice (roteiro + queries). Filtra família/DBMS. sqlmap só com ponto.",
       blocks: [
         {
-          title: "Probes manuais",
-          cmd: `# error / syntax
-curl -s "$TARGET/item?id=1'"
-curl -s "$TARGET/item?id=1 AND 1=1"
-curl -s "$TARGET/item?id=1 AND 1=2"
-# boolean / time (MySQL)
-curl -s "$TARGET/item?id=1' AND SLEEP(3)-- -"`,
-          label: "bash",
-          why: "Diferença de body/tempo/erro = ponto. Se quiser sqlmap -r, salva o request do Burp à mão.",
+          title: "Fluxo (PortSwigger)",
+          html: `<p>Painel <strong>SQLi Advice</strong> abaixo = 17 técnicas com roteiro + queries. Filtra por família / DBMS.</p>
+          <ol>
+            <li><strong>Detect</strong> → ponto (erro / boolean / time)</li>
+            <li><strong>Lógica</strong> — WHERE oculto · login bypass</li>
+            <li><strong>UNION</strong> — cols → reflect → extract</li>
+            <li><strong>Examine</strong> — version · schema/dump</li>
+            <li><strong>Blind</strong> — responses · errors (Oracle/dual) · time · OAST</li>
+            <li><strong>Error visible</strong> — EXTRACTVALUE / CAST no texto do erro</li>
+            <li><strong>Bypass</strong> — WAF/XML · 2º ordem · stacked</li>
+            <li><strong>sqlmap</strong> — só com ponto (<code>-r</code>, <code>--technique=</code>)</li>
+          </ol>
+          <p>Chips <em>plain</em> / <em>repeater</em>. <code>BURP_COLLAB</code> = Collaborator. Cookie <code>TrackingId</code> no Burp.</p>`,
         },
         {
-          title: "sqlmap no request",
+          title: "Baseline curl (opcional)",
+          cmd: `curl -s "$TARGET/item?id=1'"
+curl -s "$TARGET/item?id=1' AND 1=1--"
+curl -s "$TARGET/item?id=1' AND 1=2--"`,
+          label: "bash",
+          why: "Diff de body/erro = ponto. Preferir Burp Repeater + painel de payloads.",
+        },
+        {
+          title: "sqlmap (handoff)",
           cmd: `sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM --batch --dbs
-# dump pontual (não o planeta):
-sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM -D DB -T users --dump --threads 4
-# shell OS se DBA + file/exec:
-sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM --os-shell`,
+# request do Burp:
+sqlmap -r req.txt $SQLMAP_OPTS -p $SQLMAP_PARAM --batch --dbs
+sqlmap -r req.txt $SQLMAP_OPTS -p $SQLMAP_PARAM -D DB -T users --dump --threads 4`,
           label: "bash",
+          why: "Não dumps cegos. RoE + rate.",
         },
         {
-          title: "Union / WAF",
+          title: "Evidência",
           html: `<ul>
-            <li>Descobre colunas com <code>ORDER BY n</code> / <code>UNION SELECT NULL…</code></li>
-            <li>WAF: encoding, comentários inline, second-order — documenta bypass se achares</li>
-            <li>NoSQL? → ramo Mongo / parâmetro JSON, não este nó</li>
+            <li>Request/response do probe que prova o sink</li>
+            <li>Nº de colunas + coluna que reflete</li>
+            <li>Dado mínimo (ex.: <code>@@version</code> / um user) — não a DB inteira</li>
           </ul>`,
         },
       ],
@@ -1547,6 +1559,7 @@ sqlmap -u "$TARGET" $SQLMAP_OPTS -p $SQLMAP_PARAM --os-shell`,
         { label: "Creds no dump → crack", to: "crack-hash" },
         { label: "Dados sensíveis — reportar", to: "report" },
         { label: "Auth / login SQLi", to: "web-auth" },
+        { label: "Burp Suite", to: "burp-method" },
         { label: "Voltar ao Web", to: "web" },
       ],
     },
@@ -1818,7 +1831,7 @@ Depois: …`,
   if (pb.nodes.alive) {
     pb.nodes.alive.choices = [
       { label: "Alvo alcançável — recon passivo primeiro", hint: "OSINT / subdomains", to: "passive" },
-      { label: "Alvo alcançável — rodar o trio", hint: "dig + nmap + gobuster", to: "trio" },
+      { label: "Alvo alcançável — rodar o quarteto", hint: "dig + nmap + gobuster + enum4linux-ng", to: "trio" },
       { label: "Não alcanço o alvo", hint: "Diagnóstico de rota", to: "dead-target" },
     ];
   }
@@ -1832,50 +1845,387 @@ Depois: …`,
 
   if (pb.nodes.ports) {
     pb.nodes.ports.choices = [
-      /* web */
-      { label: "80 / 443 / 8080 · HTTP", hint: "Aplicação web", to: "web" },
-      { label: "API / swagger / XHR", hint: "OpenAPI · BOLA", to: "web-api" },
-      { label: "GraphQL", hint: "introspection · BOLA", to: "web-graphql" },
-      { label: "Login / Basic Auth", hint: "Ramo auth", to: "web-auth" },
-      { label: "JWT no fluxo", hint: "none/kid/claims", to: "web-jwt" },
-      { label: "SQLi confirmado", hint: "sqlmap / manual", to: "web-sqli" },
-      { label: "Nuclei na superfície", hint: "templates CVE · misconfig", to: "nuclei" },
-      { label: "WordPress", hint: "wpscan", to: "wordpress" },
-      { label: "Jenkins", hint: "script console", to: "jenkins" },
-      { label: "Tomcat /manager", hint: "Deploy / MSF", to: "tomcat" },
-      { label: "Burp Suite", hint: "Proxy · Repeater", to: "burp-method" },
-      { label: "Metasploit", hint: "msfconsole · handler", to: "msf" },
-      /* windows / ad */
-      { label: "445 / 139 · SMB", hint: "Shares · EternalBlue", to: "smb" },
-      { label: "nxc / NetExec SMB", hint: "spray · sam · exec", to: "nxc-smb" },
-      { label: "389 / 636 · LDAP", hint: "enum AD", to: "ldap" },
-      { label: "88 · Kerberos", hint: "AS-REP · roast", to: "kerberos" },
-      { label: "5985 / 5986 · WinRM", hint: "evil-winrm", to: "winrm" },
-      { label: "AD hub (grafo)", hint: "enum → BH → lateral", to: "ad-attack" },
-      { label: "Hash pra crackar", hint: "hashcat / john", to: "crack-hash" },
-      /* classic */
-      { label: "22 · SSH", hint: "Credencial", to: "ssh" },
-      { label: "21 · FTP", hint: "Anonymous / upload", to: "ftp" },
-      { label: "3389 · RDP", hint: "Exposição + cred", to: "rdp" },
-      { label: "111 / 2049 · NFS", hint: "showmount", to: "nfs" },
-      { label: "161/UDP · SNMP", hint: "community strings", to: "snmp" },
-      { label: "25 / 587 · SMTP", hint: "Enum / relay", to: "smtp" },
-      { label: "53 · DNS AXFR", hint: "zone transfer", to: "dns-axfr" },
-      /* data stores */
-      { label: "3306 · MySQL", hint: "DB exposto", to: "mysql" },
-      { label: "1433 · MSSQL", hint: "SQL Server", to: "mssql" },
-      { label: "5432 · Postgres", hint: "psql", to: "postgres" },
-      { label: "6379 · Redis", hint: "sem auth?", to: "redis" },
-      { label: "27017 · MongoDB", hint: "listDatabases", to: "mongodb" },
-      { label: "9200 · Elasticsearch", hint: "indices abertos", to: "elasticsearch" },
-      /* cloud / mobile */
-      { label: "AWS metadata / IAM", hint: "169.254.169.254", to: "aws-metadata" },
-      { label: "K8s API / kubelet", hint: "6443 · 10250", to: "k8s-exposed" },
-      { label: "APK no escopo", hint: "apktool · jadx", to: "android-apk" },
-      /* closeout */
-      { label: "Já tenho RCE — preciso de shell", hint: "Listener", to: "shell" },
-      { label: "Metasploit", hint: "msfconsole · handler", to: "msf" },
-      { label: "Achado válido — reportar", hint: "Finding", to: "report" },
+      /* ——— web ——— */
+      {
+        label: "HTTP(S) · app web",
+        hint: "80 / 443 / 8080 / 8443",
+        to: "web",
+        group: "web",
+        ports: ["80", "443", "8080", "8000", "8443", "8888"],
+        tags: ["http", "https", "web", "nginx", "apache"],
+        blurb: "Qualquer site/API HTTP. Ponto de partida na maioria dos labs de app.",
+        action: "Set TARGET=http(s)://IP:PORTA → ramo Web (enum + Burp).",
+      },
+      {
+        label: "API / Swagger / XHR",
+        hint: "OpenAPI · BOLA",
+        to: "web-api",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["api", "swagger", "openapi", "rest", "xhr", "bola"],
+        blurb: "Endpoints JSON, /api, /swagger, /v1 — não é só “página HTML”.",
+        action: "Mapeia rotas autenticadas · testa IDOR/BOLA no ramo API.",
+      },
+      {
+        label: "GraphQL",
+        hint: "introspection · BOLA",
+        to: "web-graphql",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["graphql", "gql", "introspection"],
+        blurb: "POST /graphql ou playground. Introspection e queries profundas.",
+        action: "Ramo GraphQL — enum schema · authz por objeto.",
+      },
+      {
+        label: "Login / Basic Auth",
+        hint: "Form · 401 · /login",
+        to: "web-auth",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["login", "auth", "basic", "401", "hydra"],
+        blurb: "Tela de login, Basic Auth, pasta 401 — não misturar com SQLi cego.",
+        action: "Ramo Auth — defaults / spray com RoE / hydra http-*.",
+      },
+      {
+        label: "JWT no fluxo",
+        hint: "Bearer · cookie",
+        to: "web-jwt",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["jwt", "bearer", "token", "jose"],
+        blurb: "Access token JWT no header/cookie. Claims e assinatura.",
+        action: "Ramo JWT — decode · alg/claims · prova mínima.",
+      },
+      {
+        label: "SQLi (já confirmado)",
+        hint: "Erro SQL / boolean",
+        to: "web-sqli",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["sqli", "sql", "sqlmap", "injection"],
+        blurb: "Só entra aqui com ponto já cheirando a SQL — não sqlmap na home.",
+        action: "Ramo SQLi — manual → sqlmap no param certo.",
+      },
+      {
+        label: "WordPress",
+        hint: "wp-login · xmlrpc",
+        to: "wordpress",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["wordpress", "wp", "wpscan", "xmlrpc"],
+        blurb: "CMS WP detectado (headers, /wp-content, wp-login).",
+        action: "Ramo WordPress — wpscan · users · plugins.",
+      },
+      {
+        label: "Jenkins",
+        hint: "8080 típico",
+        to: "jenkins",
+        group: "web",
+        ports: ["8080", "8443", "80"],
+        tags: ["jenkins", "ci", "script console"],
+        blurb: "CI Jenkins (login, /script, manage).",
+        action: "Ramo Jenkins — auth · script console se permitido.",
+      },
+      {
+        label: "Tomcat /manager",
+        hint: "8080 / 8009 / 1234…",
+        to: "tomcat",
+        group: "web",
+        ports: ["8080", "8009", "8443", "1234", "9080"],
+        tags: ["tomcat", "catalina", "manager", "ajp"],
+        blurb: "Apache Tomcat — manager, AJP, WAR deploy. Porta pode NÃO ser 8080.",
+        action: "Set RPORT → ramo Tomcat. Achaste na 1234? Pula pra cá agora.",
+      },
+      {
+        label: "Nuclei na superfície",
+        hint: "CVE · misconfig",
+        to: "nuclei",
+        group: "web",
+        ports: ["80", "443", "8080"],
+        tags: ["nuclei", "cve", "template", "scan"],
+        blurb: "Scan de templates depois de ter URL/alvo claro.",
+        action: "Ramo Nuclei — templates scoped · não substitui Burp.",
+      },
+      {
+        label: "Burp Suite",
+        hint: "Proxy · Repeater",
+        to: "burp-method",
+        group: "web",
+        ports: [],
+        tags: ["burp", "proxy", "repeater", "interceptor"],
+        blurb: "Método de trabalho no proxy — não é porta.",
+        action: "Ramo Burp — scope · Repeater · Intruder consciente.",
+      },
+
+      /* ——— windows / AD ——— */
+      {
+        label: "SMB",
+        hint: "445 / 139",
+        to: "smb",
+        group: "windows",
+        ports: ["445", "139"],
+        tags: ["smb", "cifs", "shares", "eternalblue", "samba"],
+        blurb: "Shares, null session, signing, EternalBlue-ish.",
+        action: "Ramo SMB — enum shares/users · RoE em spray.",
+      },
+      {
+        label: "NetExec / nxc SMB",
+        hint: "spray · sam · exec",
+        to: "nxc-smb",
+        group: "windows",
+        ports: ["445"],
+        tags: ["nxc", "netexec", "crackmapexec", "cme"],
+        blurb: "Quando já vais de nxc/cme no 445 (spray, SAM, exec).",
+        action: "Ramo nxc-smb — rate e RoE.",
+      },
+      {
+        label: "LDAP",
+        hint: "389 / 636",
+        to: "ldap",
+        group: "windows",
+        ports: ["389", "636", "3268", "3269"],
+        tags: ["ldap", "ldaps", "ad", "directory"],
+        blurb: "Directory AD — enum users/groups (bind permitido).",
+        action: "Ramo LDAP — anonymous/bind · enum sem dump cego.",
+      },
+      {
+        label: "Kerberos",
+        hint: "88",
+        to: "kerberos",
+        group: "windows",
+        ports: ["88"],
+        tags: ["kerberos", "krb", "asrep", "roast", "ticket"],
+        blurb: "KDC 88 — AS-REP, roast, skew de relógio.",
+        action: "Ramo Kerberos — sync hora · só no escopo.",
+      },
+      {
+        label: "WinRM",
+        hint: "5985 / 5986",
+        to: "winrm",
+        group: "windows",
+        ports: ["5985", "5986"],
+        tags: ["winrm", "evil-winrm", "powershell"],
+        blurb: "Remote management Windows — evil-winrm com cred.",
+        action: "Ramo WinRM — cred válida · shell remoto.",
+      },
+      {
+        label: "AD hub (grafo)",
+        hint: "BloodHound path",
+        to: "ad-attack",
+        group: "windows",
+        ports: ["88", "389", "445"],
+        tags: ["ad", "bloodhound", "lateral", "domain"],
+        blurb: "Já tens domínio/contexto AD e vais lateralizar.",
+        action: "Ramo AD — enum → paths → lateral consciente.",
+      },
+      {
+        label: "Hash pra crackar",
+        hint: "hashcat / john",
+        to: "crack-hash",
+        group: "windows",
+        ports: [],
+        tags: ["hash", "hashcat", "john", "ntlm", "crack"],
+        blurb: "Tens hash (NTLM, kerberoast, etc.) — offline crack.",
+        action: "Ramo crack — wordlist · não spray o resultado ainda.",
+      },
+
+      /* ——— clássicos ——— */
+      {
+        label: "SSH",
+        hint: "22",
+        to: "ssh",
+        group: "classic",
+        ports: ["22"],
+        tags: ["ssh", "openssh", "shell"],
+        blurb: "SSH aberto — keys, users, versão.",
+        action: "Ramo SSH — enum · spray só com RoE.",
+      },
+      {
+        label: "FTP",
+        hint: "21",
+        to: "ftp",
+        group: "classic",
+        ports: ["21"],
+        tags: ["ftp", "anonymous", "vsftpd"],
+        blurb: "FTP — anonymous, upload, bounce raro.",
+        action: "Ramo FTP — anonymous · list · write?",
+      },
+      {
+        label: "RDP",
+        hint: "3389",
+        to: "rdp",
+        group: "classic",
+        ports: ["3389"],
+        tags: ["rdp", "nla", "credssp", "xfreerdp"],
+        blurb: "Desktop remoto — NLA, lockout real.",
+        action: "Ramo RDP — rate baixo · RoE.",
+      },
+      {
+        label: "NFS",
+        hint: "111 / 2049",
+        to: "nfs",
+        group: "classic",
+        ports: ["111", "2049"],
+        tags: ["nfs", "showmount", "rpc"],
+        blurb: "NFS exports — showmount, mount, no_root_squash.",
+        action: "Ramo NFS — showmount -e · mount cuidadoso.",
+      },
+      {
+        label: "SNMP",
+        hint: "161/UDP",
+        to: "snmp",
+        group: "classic",
+        ports: ["161"],
+        tags: ["snmp", "udp", "community", "public"],
+        blurb: "SNMP UDP — community strings, info leak.",
+        action: "Ramo SNMP — onesixtyone / snmpwalk.",
+      },
+      {
+        label: "SMTP",
+        hint: "25 / 587 / 465",
+        to: "smtp",
+        group: "classic",
+        ports: ["25", "587", "465"],
+        tags: ["smtp", "mail", "relay", "vrfy"],
+        blurb: "Mail — enum users, open relay (raro).",
+        action: "Ramo SMTP — enum · não spam.",
+      },
+      {
+        label: "DNS AXFR",
+        hint: "53",
+        to: "dns-axfr",
+        group: "classic",
+        ports: ["53"],
+        tags: ["dns", "axfr", "zone", "bind"],
+        blurb: "DNS — zone transfer se permitido.",
+        action: "Ramo DNS AXFR — dig axfr · só in-scope.",
+      },
+
+      /* ——— data stores ——— */
+      {
+        label: "MySQL",
+        hint: "3306",
+        to: "mysql",
+        group: "data",
+        ports: ["3306"],
+        tags: ["mysql", "mariadb", "sql"],
+        blurb: "MySQL/MariaDB exposto.",
+        action: "Ramo MySQL — auth · enum DBs com RoE.",
+      },
+      {
+        label: "MSSQL",
+        hint: "1433",
+        to: "mssql",
+        group: "data",
+        ports: ["1433"],
+        tags: ["mssql", "sqlserver", "tds"],
+        blurb: "SQL Server — login, xp_cmdshell (se RoE).",
+        action: "Ramo MSSQL — auth · linked servers depois.",
+      },
+      {
+        label: "Postgres",
+        hint: "5432",
+        to: "postgres",
+        group: "data",
+        ports: ["5432"],
+        tags: ["postgres", "postgresql", "psql"],
+        blurb: "PostgreSQL exposto.",
+        action: "Ramo Postgres — auth · enum.",
+      },
+      {
+        label: "Redis",
+        hint: "6379",
+        to: "redis",
+        group: "data",
+        ports: ["6379"],
+        tags: ["redis", "cache", "noauth"],
+        blurb: "Redis — muitas vezes sem auth em lab.",
+        action: "Ramo Redis — INFO · config com cuidado.",
+      },
+      {
+        label: "MongoDB",
+        hint: "27017",
+        to: "mongodb",
+        group: "data",
+        ports: ["27017"],
+        tags: ["mongo", "mongodb", "nosql"],
+        blurb: "Mongo sem auth / listDatabases.",
+        action: "Ramo MongoDB — enum DBs · sem wipe.",
+      },
+      {
+        label: "Elasticsearch",
+        hint: "9200",
+        to: "elasticsearch",
+        group: "data",
+        ports: ["9200", "9300"],
+        tags: ["elastic", "elasticsearch", "kibana"],
+        blurb: "ES indices abertos — amostra, não dump inteiro.",
+        action: "Ramo Elasticsearch — _cat/indices · amostra.",
+      },
+
+      /* ——— cloud / mobile ——— */
+      {
+        label: "AWS metadata / IAM",
+        hint: "169.254.169.254",
+        to: "aws-metadata",
+        group: "cloud",
+        ports: [],
+        tags: ["aws", "metadata", "iam", "ssrf", "169.254"],
+        blurb: "SSRF/cloud chegou em metadata — credencial de instância.",
+        action: "Ramo AWS metadata — RoE · amostragem mínima.",
+      },
+      {
+        label: "K8s API / kubelet",
+        hint: "6443 · 10250",
+        to: "k8s-exposed",
+        group: "cloud",
+        ports: ["6443", "10250", "10255"],
+        tags: ["k8s", "kubernetes", "kubelet", "api"],
+        blurb: "API server ou kubelet exposto.",
+        action: "Ramo K8s — enum com cuidado · RoE.",
+      },
+      {
+        label: "APK no escopo",
+        hint: "mobile Android",
+        to: "android-apk",
+        group: "cloud",
+        ports: [],
+        tags: ["apk", "android", "mobile", "jadx"],
+        blurb: "Entregaram APK / mobile no engajamento.",
+        action: "Ramo APK — apktool/jadx · secrets.",
+      },
+
+      /* ——— closeout ——— */
+      {
+        label: "Já tenho RCE — shell",
+        hint: "Listener / handler",
+        to: "shell",
+        group: "close",
+        ports: [],
+        tags: ["shell", "rce", "reverse", "nc", "listener"],
+        blurb: "Já exploraste — falta listener e sessão estável.",
+        action: "Ramo Shell — LHOST/LPORT · rlwrap nc / msf.",
+      },
+      {
+        label: "Metasploit",
+        hint: "msfconsole · handler",
+        to: "msf",
+        group: "close",
+        ports: [],
+        tags: ["msf", "metasploit", "exploit", "handler"],
+        blurb: "Quando o path pede módulo MSF / multi-handler.",
+        action: "Ramo Metasploit — use / set / run.",
+      },
+      {
+        label: "Achado válido — reportar",
+        hint: "Finding",
+        to: "report",
+        group: "close",
+        ports: [],
+        tags: ["report", "finding", "evidence"],
+        blurb: "Prova mínima fechada — documenta impacto.",
+        action: "Ramo Report — evidência · remediação.",
+      },
     ];
   }
 
