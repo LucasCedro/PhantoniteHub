@@ -257,6 +257,15 @@
       font-size: 0.88rem;
       line-height: 1.55;
     }
+    .case-note {
+      margin: 0.8rem 0 0;
+      max-width: 62ch;
+      color: var(--ink);
+      font-size: 0.88rem;
+      line-height: 1.55;
+      border-left: 2px solid var(--amber);
+      padding: 0.1rem 0 0.1rem 0.75rem;
+    }
     .case-go {
       display: inline-flex;
       margin-top: 0.95rem;
@@ -469,18 +478,20 @@
 
     <footer class="den-foot">
       <span>phantonite@garage</span>
+      <span>open to junior pentest / intern · remote or BR</span>
       <a href="mailto:eng.lucascedro@gmail.com">eng.lucascedro@gmail.com</a>
     </footer>
   </div>
 
   <script>
-    /* Add a write-up: one object in writeups[]. Nothing else. */
+    /* Add a write-up: one object in writeups[]. Optional: note (judgment). */
     window.PORTFOLIO = {
       handle: "phantonite",
       host: "garage",
       name: "Lucas Cedro Temponi",
       roleShort: "pentest in training · web + network",
       from: "data engineering → offensive security",
+      seeking: "open to junior pentest / intern · remote or BR",
       cert: "eJPT (INE)",
       focus: "Metasploit & Pivoting",
       labs: "TryHackMe Premium · PortSwigger Web Security Academy",
@@ -504,7 +515,8 @@
           category: "web",
           platform: "PortSwigger Web Security Academy",
           tools: "Burp Suite (Intruder)",
-          description: "Exploited a blind SQL injection using the application's conditional responses, extracting the administrator's password character-by-character with Burp Intruder."
+          description: "Exploited a blind SQL injection using the application's conditional responses, extracting the administrator's password character-by-character with Burp Intruder.",
+          note: "UNION and error-based were silent — the cookie isn't reflected. The only oracle was a Welcome back banner. On a live app I'd hunt that boolean tell in tracking cookies before smashing the login form."
         }
       ]
     };
@@ -533,6 +545,7 @@
             "<h3><a href=\"" + esc(w.url) + "\" target=\"_blank\" rel=\"noopener\">" + esc(w.title) + "</a></h3>" +
             "<p class=\"case-meta\">" + esc(w.platform) + " · " + esc(w.tools) + "</p>" +
             "<p>" + esc(w.description) + "</p>" +
+            (w.note ? "<p class=\"case-note\">" + esc(w.note) + "</p>" : "") +
             "<a class=\"case-go\" href=\"" + esc(w.url) + "\" target=\"_blank\" rel=\"noopener\">Read write-up</a>" +
           "</div>";
         root.appendChild(art);

@@ -240,6 +240,7 @@
     const track = [P.cert, P.focus].filter(Boolean).join("  ·  ");
     if (track) box.appendChild(el("p", "term-motd-meta", track));
     if (P.from) box.appendChild(el("p", "term-motd-from", P.from));
+    if (P.seeking) box.appendChild(el("p", "term-motd-seek", P.seeking));
 
     const ev = el("div", "term-motd-ev");
     ev.appendChild(el("div", "term-motd-ev-k", "evidence"));
@@ -418,6 +419,7 @@
         ["from", P.from],
         ["cert", P.cert],
         ["focus", P.focus],
+        ["open to", P.seeking],
       ],
     });
   }
@@ -500,6 +502,7 @@
         ["title", w.title],
         ["where", `${w.platform} · ${w.tools}`],
         ["notes", w.description],
+        ["read", w.note],
       ],
     });
     if (w.url) {
