@@ -1,6 +1,6 @@
 /**
  * Public garage terminal — portfolio node.
- * Same interaction as the HUB den. No field guide.
+ * Workstation cage. Bitmite is the only living process.
  */
 (() => {
   const logEl = document.querySelector("[data-term-log]");
@@ -8,6 +8,13 @@
   const input = document.querySelector("[data-term-input]");
   const mirror = document.querySelector("[data-term-mirror]");
   const caret = document.querySelector("[data-term-caret]");
+  const termEl = document.querySelector("[data-term]");
+  const chipsEl = document.querySelector("[data-term-chips]");
+  const clockEl = document.querySelector("[data-term-clock]");
+  const hudTrack = document.querySelector("[data-hud-track]");
+  const hudEvidence = document.querySelector("[data-hud-evidence]");
+  const hudProc = document.querySelector("[data-hud-proc]");
+  const hudState = document.querySelector("[data-hud-state]");
   if (!form || !input || !logEl) return;
 
   const P = window.PORTFOLIO || {};
@@ -15,29 +22,59 @@
   const HOST = P.host || "garage";
   const LINKS = P.links || {};
   const WRITEUPS = P.writeups || [];
+  const HANDLE_B64 = "cGhhbnRvbml0ZQ==";
+  const BOOT_KEY = "garage.boot.v2";
+  const HINT_KEY = "garage.hint.v1";
+  const SCANNERS = new Set([
+    "nmap", "masscan", "msfconsole", "msf", "burp", "burpsuite",
+    "sqlmap", "hydra", "nikto", "gobuster", "ffuf",
+  ]);
 
   const history = [];
   let histIdx = -1;
+  let booting = false;
+  let interacted = false;
+  let idleTamago = false;
+
+  function reducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function storeGet(k) {
+    try { return sessionStorage.getItem(k); } catch { return null; }
+  }
+
+  function storeSet(k, v) {
+    try { sessionStorage.setItem(k, v); } catch { /* ignore */ }
+  }
+
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
 
   function promptHtml(cmd) {
     const c = cmd != null ? ` <span class="term-cmd">${escapeHtml(cmd)}</span>` : "";
     return `<span class="p">${HANDLE}@${HOST}</span>:<span class="w">~</span>$${c}`;
   }
 
+  function addNode(node) {
+    logEl.appendChild(node);
+    logEl.scrollTop = logEl.scrollHeight;
+    return node;
+  }
+
   function line(html, cls = "") {
     const p = document.createElement("p");
     if (cls) p.className = cls;
     p.innerHTML = html;
-    logEl.appendChild(p);
-    logEl.scrollTop = logEl.scrollHeight;
+    addNode(p);
   }
 
   function plain(text, cls = "term-out") {
     const p = document.createElement("p");
     p.className = cls;
     p.textContent = text;
-    logEl.appendChild(p);
-    logEl.scrollTop = logEl.scrollHeight;
+    addNode(p);
   }
 
   function echoCmd(cmd) {
@@ -52,9 +89,51 @@
       .replace(/"/g, "&quot;");
   }
 
-  function kv(key, value) {
-    if (!value) return;
-    plain(key.padEnd(10, " ") + value);
+  function panel({ title, rows, foot }) {
+    const el = document.createElement("div");
+    el.className = "term-panel";
+    if (title) {
+      const h = document.createElement("p");
+      h.className = "term-panel-h";
+      h.textContent = title;
+      el.appendChild(h);
+    }
+    (rows || []).forEach(([k, v, html]) => {
+      if (!v && !html) return;
+      const row = document.createElement("div");
+      row.className = "term-kv";
+      const key = document.createElement("span");
+      key.className = "term-kv-k";
+      key.textContent = k;
+      const val = document.createElement("span");
+      val.className = "term-kv-v";
+      if (html) val.innerHTML = html;
+      else val.textContent = v;
+      row.append(key, val);
+      el.appendChild(row);
+    });
+    if (foot) {
+      const f = document.createElement("p");
+      f.className = "term-panel-f";
+      f.textContent = foot;
+      el.appendChild(f);
+    }
+    addNode(el);
+  }
+
+  async function typeLine(text, cls = "term-ice") {
+    const p = document.createElement("p");
+    p.className = cls;
+    addNode(p);
+    if (reducedMotion()) {
+      p.textContent = text;
+      return;
+    }
+    for (let i = 1; i <= text.length; i++) {
+      p.textContent = text.slice(0, i);
+      logEl.scrollTop = logEl.scrollHeight;
+      await sleep(16);
+    }
   }
 
   function slugOf(w, i) {
@@ -73,6 +152,189 @@
     const byIndex = WRITEUPS[Number(t) - 1];
     if (/^\d+$/.test(t) && byIndex) return byIndex;
     return WRITEUPS.find((w, i) => slugOf(w, i) === t) || null;
+  }
+
+  function bitmitePeek() {
+    try {
+      return window.PhantonitePet?.peek?.() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function renderHud() {
+    if (hudTrack) hudTrack.textContent = "eJPT";
+    if (hudEvidence) hudEvidence.textContent = String(WRITEUPS.length);
+    if (hudProc) hudProc.textContent = "bitmite";
+    if (!hudState) return;
+    const pet = window.PhantonitePet;
+    if (!pet) {
+      hudState.textContent = "offline";
+      hudState.className = "hud-s is-dead";
+      return;
+    }
+    const s = bitmitePeek();
+    if (!s || !s.discovered) {
+      hudState.textContent = idleTamago ? "dormant · tamago" : "dormant";
+      hudState.className = idleTamago ? "hud-s is-live" : "hud-s";
+      return;
+    }
+    if (s.dead) {
+      hudState.textContent = "dead";
+      hudState.className = "hud-s is-dead";
+      return;
+    }
+    const stage = s.stage || "egg";
+    const h = Math.round(s.hunger ?? 0);
+    const e = Math.round(s.energy ?? 0);
+    const m = Math.round(s.mood ?? 0);
+    hudState.textContent = `${stage}\nH${h} E${e} M${m}`;
+    hudState.className = "hud-s is-live";
+  }
+
+  function tickClock() {
+    if (!clockEl) return;
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const get = (t) => parts.find((p) => p.type === t)?.value || "00";
+    clockEl.textContent = `${get("hour")}:${get("minute")}:${get("second")} -03`;
+  }
+
+  function setBusy(on) {
+    booting = on;
+    input.disabled = on;
+    termEl?.querySelectorAll("[data-chip]").forEach((b) => {
+      b.disabled = on;
+    });
+  }
+
+  function glitchName() {
+    const el = document.querySelector(".den-main h1 span");
+    if (!el || reducedMotion()) return;
+    el.classList.add("is-glitch");
+    setTimeout(() => el.classList.remove("is-glitch"), 220);
+  }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function printMotd(animated) {
+    const box = el("div", "term-motd" + (animated && !reducedMotion() ? " is-in" : ""));
+
+    const head = el("div", "term-motd-h");
+    head.append(el("span", "term-motd-host", HOST), el("span", "term-motd-tag", "public node"));
+    box.appendChild(head);
+
+    box.appendChild(el("p", "term-motd-name", P.name || "Lucas Cedro Temponi"));
+    box.appendChild(el("p", "term-motd-role", `${HANDLE}  ·  ${P.roleShort || "pentest in training"}`));
+
+    const track = [P.cert, P.focus].filter(Boolean).join("  ·  ");
+    if (track) box.appendChild(el("p", "term-motd-meta", track));
+    if (P.from) box.appendChild(el("p", "term-motd-from", P.from));
+
+    const ev = el("div", "term-motd-ev");
+    ev.appendChild(el("div", "term-motd-ev-k", "evidence"));
+    const v = el("div", "term-motd-ev-v");
+    const latest = WRITEUPS[0];
+    if (!latest) {
+      v.appendChild(el("p", "term-motd-ev-src", "none published yet"));
+    } else {
+      const slug = slugOf(latest, 0);
+      const n = WRITEUPS.length;
+      v.appendChild(el("p", "term-motd-ev-count", n === 1 ? "1 write-up on record" : `${n} write-ups on record`));
+      v.appendChild(el("p", "term-motd-ev-id", slug));
+      if (latest.title) v.appendChild(el("p", "term-motd-ev-title", latest.title));
+      const src = [latest.platform, latest.tools].filter(Boolean).join(" · ");
+      if (src) v.appendChild(el("p", "term-motd-ev-src", src));
+      const run = el("button", "term-inline-cmd", `open ${slug}`);
+      run.type = "button";
+      run.setAttribute("data-chip", `open ${slug}`);
+      v.appendChild(run);
+    }
+    ev.appendChild(v);
+    box.appendChild(ev);
+    addNode(box);
+  }
+
+  function renderChips() {
+    if (!chipsEl) return;
+    chipsEl.innerHTML = "";
+    const items = [
+      ["whoami", "whoami"],
+      ["writeups", "writeups"],
+      ["tamago run", "tamago run"],
+    ];
+    items.forEach(([cmd, label]) => {
+      const b = el("button", "", label);
+      b.type = "button";
+      b.setAttribute("data-chip", cmd);
+      chipsEl.appendChild(b);
+    });
+  }
+
+  function focusInput() {
+    input.focus({ preventScroll: true });
+    syncCaret();
+  }
+
+  function maybeFocus() {
+    const a = document.activeElement;
+    if (a === document.body || a === document.documentElement || a === input || !a) {
+      focusInput();
+    }
+  }
+
+  function armIdleHint() {
+    if (storeGet(HINT_KEY) === "1") return;
+    setTimeout(() => {
+      if (interacted) return;
+      if (storeGet(HINT_KEY) === "1") return;
+      const s = bitmitePeek();
+      if (s?.discovered) return;
+      idleTamago = true;
+      renderHud();
+      storeSet(HINT_KEY, "1");
+    }, 8000);
+  }
+
+  async function playBoot() {
+    const replay = storeGet(BOOT_KEY) === "1" || reducedMotion();
+    logEl.innerHTML = "";
+    renderChips();
+    setBusy(true);
+
+    if (replay) {
+      printMotd(false);
+      plain("type help for more", "term-ice");
+    } else {
+      glitchName();
+      termEl?.classList.add("is-connecting");
+      await sleep(280);
+      printMotd(true);
+      setBusy(true);
+      await sleep(260);
+      plain("type help for more", "term-ice");
+      termEl?.classList.remove("is-connecting");
+    }
+
+    storeSet(BOOT_KEY, "1");
+    setBusy(false);
+    maybeFocus();
+    if (!location.hash) {
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => window.scrollTo(0, 0));
+    }
+    armIdleHint();
+    renderHud();
   }
 
   function bitmiteLine() {
@@ -105,18 +367,33 @@
   }
 
   function help() {
-    plain("commands:");
-    plain("  whoami          — identity card");
-    plain("  cat README      — about (prose)");
-    plain("  writeups        — published evidence");
-    plain("  open <id>       — open a write-up");
-    plain("  status          — cert track");
-    plain("  stack           — tools");
-    plain("  contact         — links");
-    plain("  tamago run      — open bitmite");
-    plain("  tamago kill     — kill process + wipe save");
-    plain("  clear           — wipe scrollback");
-    plain("  help");
+    const el = document.createElement("div");
+    el.className = "term-help";
+    const items = [
+      ["whoami", "identity card"],
+      ["writeups", "published evidence"],
+      ["cat README", "about (prose)"],
+      ["open <id>", "open a write-up"],
+      ["status", "cert track"],
+      ["stack", "tools"],
+      ["contact", "links"],
+      ["tamago run", "open bitmite"],
+      ["tamago kill", "kill process + wipe save"],
+      ["clear", "wipe scrollback"],
+    ];
+    items.forEach(([cmd, desc]) => {
+      const row = document.createElement("div");
+      row.className = "term-help-row";
+      const c = document.createElement("span");
+      c.className = "term-hl";
+      c.textContent = cmd;
+      const d = document.createElement("span");
+      d.textContent = desc;
+      row.append(c, d);
+      el.appendChild(row);
+    });
+    addNode(el);
+    plain("also: sudo · nmap · base64", "term-dim");
   }
 
   function printAbout() {
@@ -132,18 +409,28 @@
   }
 
   function printWhoami() {
-    kv("name", P.name || "unknown");
-    kv("handle", HANDLE);
-    kv("role", P.roleShort || P.role);
-    kv("from", P.from);
-    kv("cert", P.cert);
-    kv("focus", P.focus);
+    panel({
+      title: "whoami",
+      rows: [
+        ["name", P.name || "unknown"],
+        ["handle", HANDLE],
+        ["role", P.roleShort || P.role],
+        ["from", P.from],
+        ["cert", P.cert],
+        ["focus", P.focus],
+      ],
+    });
   }
 
   function printStatus() {
-    kv("cert", P.cert);
-    kv("focus", P.focus);
-    kv("labs", P.labs);
+    panel({
+      title: "status",
+      rows: [
+        ["cert", P.cert],
+        ["focus", P.focus],
+        ["labs", P.labs],
+      ],
+    });
   }
 
   function printStack() {
@@ -151,10 +438,20 @@
   }
 
   function printContact() {
-    if (LINKS.linkedin) line(`LinkedIn   <a class="term-link" href="${escapeHtml(LINKS.linkedin)}" target="_blank" rel="noopener">in/olucascedro</a>`);
-    if (LINKS.thm) line(`TryHackMe  <a class="term-link" href="${escapeHtml(LINKS.thm)}" target="_blank" rel="noopener">Phantonite</a>`);
-    if (LINKS.medium) line(`Medium     <a class="term-link" href="${escapeHtml(LINKS.medium)}" target="_blank" rel="noopener">@eng.lucascedro</a>`);
-    if (LINKS.email) line(`Email      <a class="term-link" href="mailto:${escapeHtml(LINKS.email)}">${escapeHtml(LINKS.email)}</a>`);
+    const rows = [];
+    if (LINKS.linkedin) {
+      rows.push(["LinkedIn", "", `<a class="term-link" href="${escapeHtml(LINKS.linkedin)}" target="_blank" rel="noopener">in/olucascedro</a>`]);
+    }
+    if (LINKS.thm) {
+      rows.push(["TryHackMe", "", `<a class="term-link" href="${escapeHtml(LINKS.thm)}" target="_blank" rel="noopener">Phantonite</a>`]);
+    }
+    if (LINKS.medium) {
+      rows.push(["Medium", "", `<a class="term-link" href="${escapeHtml(LINKS.medium)}" target="_blank" rel="noopener">@eng.lucascedro</a>`]);
+    }
+    if (LINKS.email) {
+      rows.push(["Email", "", `<a class="term-link" href="mailto:${escapeHtml(LINKS.email)}">${escapeHtml(LINKS.email)}</a>`]);
+    }
+    panel({ title: "contact", rows });
   }
 
   function listWriteups() {
@@ -162,15 +459,28 @@
       plain("no write-ups yet — more added as they're published.");
       return;
     }
+    const wrap = document.createElement("div");
+    wrap.className = "term-table";
+    const head = document.createElement("div");
+    head.className = "term-table-h";
+    head.innerHTML = "<span>id</span><span>cat</span><span>title</span>";
+    wrap.appendChild(head);
     WRITEUPS.forEach((w, i) => {
       const slug = slugOf(w, i);
-      if (i) plain("");
-      plain(`[${i + 1}] ${w.category}  ${w.title}`);
-      plain(`    ${w.platform} · ${w.tools}`);
-      plain(`    id  ${slug}`);
+      const row = document.createElement("div");
+      row.className = "term-table-r";
+      const id = document.createElement("span");
+      id.className = "id";
+      id.textContent = slug;
+      const cat = document.createElement("span");
+      cat.textContent = w.category || "web";
+      const title = document.createElement("span");
+      title.textContent = w.title || "";
+      row.append(id, cat, title);
+      wrap.appendChild(row);
     });
-    plain("");
-    plain("use the command open <id> to open the document");
+    addNode(wrap);
+    plain("open <id> to open the document", "term-dim");
   }
 
   function openWriteup(token) {
@@ -184,9 +494,14 @@
       plain(`no write-up '${token}' — try: writeups`, "term-err");
       return;
     }
-    plain(`${w.title}`);
-    plain(`${w.platform} · ${w.tools}`);
-    if (w.description) plain(w.description);
+    panel({
+      title: slugOf(w, 0),
+      rows: [
+        ["title", w.title],
+        ["where", `${w.platform} · ${w.tools}`],
+        ["notes", w.description],
+      ],
+    });
     if (w.url) {
       line(`opening <a class="term-link" href="${escapeHtml(w.url)}" target="_blank" rel="noopener">${escapeHtml(w.url)}</a>`);
       window.open(w.url, "_blank", "noopener");
@@ -210,17 +525,20 @@
     const pet = window.PhantonitePet;
     if (!pet) {
       plain("tamago: module not loaded", "term-err");
+      renderHud();
       return;
     }
     const sub = (args[0] || "run").toLowerCase();
     if (sub === "run" || sub === "open" || sub === "start") {
       pet.open();
       plain("tamago: online · dock open (save intact)");
+      renderHud();
       return;
     }
     if (sub === "stop" || sub === "hide" || sub === "close" || sub === "min") {
       pet.close();
       plain("tamago: minimized · chip in the corner to restore");
+      renderHud();
       return;
     }
     if (sub === "kill" || sub === "exit" || sub === "destroy") {
@@ -229,10 +547,12 @@
         r.ok ? "tamago: killed · save wiped. `tamago run` to hatch another" : "tamago: kill failed",
         r.ok ? "term-out" : "term-err"
       );
+      renderHud();
       return;
     }
     if (sub === "status" || sub === "stat") {
       tamagoStatus();
+      renderHud();
       return;
     }
     if (sub === "name" || sub === "rename") {
@@ -273,12 +593,39 @@
     plain(href);
   }
 
+  function decodeB64(token) {
+    if (!token) {
+      plain("usage: echo <token> | base64 -d", "term-err");
+      return;
+    }
+    try {
+      const clean = String(token).replace(/\s/g, "");
+      const out = atob(clean);
+      if (!/^[\x20-\x7e]+$/.test(out) || out.length > 80) {
+        plain("base64: binary / too long — ignored", "term-err");
+        return;
+      }
+      plain(out);
+      if (out === HANDLE) plain("handle confirmed", "term-dim");
+    } catch {
+      plain("base64: invalid input", "term-err");
+    }
+  }
+
   function exec(raw) {
+    if (booting) return;
     const cmd = raw.trim();
     if (!cmd) return;
+    interacted = true;
     history.push(cmd);
     histIdx = history.length;
     echoCmd(cmd);
+
+    const pipe = cmd.match(/^echo\s+(\S+)\s*\|\s*base64(?:\s+-d(?:ecode)?)?$/i);
+    if (pipe) {
+      decodeB64(pipe[1]);
+      return;
+    }
 
     const parts = cmd.split(/\s+/);
     const head = parts[0].toLowerCase();
@@ -311,6 +658,30 @@
     }
     if (head === "writeups" || head === "writeup") {
       listWriteups();
+      return;
+    }
+    if (head === "sudo") {
+      plain(
+        `${HANDLE} is not in the sudoers file. this incident will be reported to the recruiter.`,
+        "term-err"
+      );
+      return;
+    }
+    if (SCANNERS.has(head)) {
+      plain("this node is a CV, not a scanner.");
+      return;
+    }
+    if (head === "base64") {
+      const tok = args.find((a) => !a.startsWith("-"));
+      decodeB64(tok);
+      return;
+    }
+    if (head === "echo") {
+      plain(args.join(" "));
+      return;
+    }
+    if (head === "cd") {
+      plain("public node · nowhere to cd");
       return;
     }
     if (head === "linkedin" || head === "thm" || head === "tryhackme" || head === "medium" || head === "mail" || head === "email") {
@@ -392,6 +763,7 @@
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (booting) return;
     const v = input.value;
     input.value = "";
     exec(v);
@@ -421,10 +793,26 @@
     if (document.activeElement === input) syncCaret();
   });
 
-  document.querySelector("[data-term]")?.addEventListener("click", () => {
-    input.focus();
-    syncCaret();
+  termEl?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-chip]");
+    if (btn) {
+      if (booting) return;
+      exec(btn.getAttribute("data-chip") || "");
+      focusInput();
+      return;
+    }
+    if (e.target.closest("a, input")) return;
+    if (window.getSelection && String(window.getSelection())) return;
+    focusInput();
   });
 
+  tickClock();
+  renderHud();
+  setInterval(() => {
+    tickClock();
+    renderHud();
+  }, 1000);
+
   syncCaret();
+  playBoot();
 })();
