@@ -1,0 +1,11 @@
+---
+description: Phantonite Medium write-up voice when editing files under writeups/
+globs: writeups/**/*.md
+alwaysApply: false
+---
+
+# Write-ups
+
+This pack is the `writeups/` project. Follow `writeups/SKILL.md`.
+
+Article in English. Chat with Lucas in Portuguese. No command dumps. Spine: what I saw → what I tried (including what died) → why it worked → one live-app transfer. Do not invent steps he did not run.

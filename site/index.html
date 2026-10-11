@@ -202,9 +202,14 @@
       height: 1px;
       background: var(--line);
     }
+    .about-layout {
+      display: grid;
+      grid-template-columns: 7.4rem minmax(0, 62ch) minmax(10.5rem, 1fr);
+      column-gap: 1.5rem;
+      align-items: start;
+    }
     .dossier-about p {
-      margin: 0 0 0.95rem 7.4rem;
-      max-width: 62ch;
+      margin: 0 0 0.95rem;
       color: var(--ink);
       font-size: 0.92rem;
       line-height: 1.65;
@@ -216,8 +221,9 @@
 
     .case {
       display: grid;
-      grid-template-columns: 7.4rem minmax(0, 1fr);
+      grid-template-columns: 7.4rem minmax(0, 62ch) minmax(10.5rem, 1fr);
       column-gap: 1.5rem;
+      align-items: start;
       padding: 0.2rem 0 0.2rem;
     }
     .case-rail {
@@ -252,14 +258,12 @@
     }
     .case-body p {
       margin: 0.7rem 0 0;
-      max-width: 62ch;
       color: var(--ink-dim);
       font-size: 0.88rem;
       line-height: 1.55;
     }
     .case-note {
       margin: 0.8rem 0 0;
-      max-width: 62ch;
       color: var(--ink);
       font-size: 0.88rem;
       line-height: 1.55;
@@ -280,6 +284,28 @@
       color: #7ae9ff;
       border-bottom-color: #7ae9ff;
       text-decoration: none;
+    }
+    .case-glance {
+      border-left: 1px solid rgba(225, 29, 46, 0.28);
+      padding: 0.2rem 0 0.2rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      max-width: 16rem;
+    }
+    .glance-k {
+      display: block;
+      font-size: 0.58rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 0.12rem;
+    }
+    .glance-v {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--ink);
+      line-height: 1.35;
     }
     .tag {
       display: inline-block;
@@ -343,6 +369,22 @@
     }
     body.home .den-foot a:hover { color: var(--ice); }
 
+    @media (max-width: 960px) {
+      .case,
+      .about-layout {
+        grid-template-columns: 7.4rem minmax(0, 1fr);
+      }
+      .case-glance {
+        grid-column: 2;
+        border-left: 0;
+        border-top: 1px dashed rgba(225, 29, 46, 0.3);
+        padding: 0.75rem 0 0;
+        max-width: none;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.65rem 1.35rem;
+      }
+    }
     @media (max-width: 720px) {
       body.home .den-board {
         grid-template-columns: 1fr;
@@ -356,11 +398,12 @@
       }
       body.home .term-log { height: 13.5rem; max-height: 13.5rem; }
       .case,
+      .about-layout,
       .kit-row {
         grid-template-columns: 1fr;
         row-gap: 0.45rem;
       }
-      .dossier-about p { margin-left: 0; }
+      .case-glance { grid-column: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
       .den-status .dot { box-shadow: none; }
@@ -439,11 +482,21 @@
         <div data-writeups></div>
       </section>
 
-      <section class="dossier-about" aria-labelledby="about-h">
+      <section aria-labelledby="about-h">
         <div class="sec-head"><h2 id="about-h">Background</h2></div>
-        <p>Came from data analytics and engineering. Years in logs, SQL, and systems that don’t match the ticket. Same attention, other side of the wire: how web and network targets actually fail.</p>
-        <p>Write-ups are how I think on paper — what I saw, what I tried, why it worked. Not command dumps.</p>
-        <p>Training: TryHackMe Premium, PortSwigger Web Security Academy. Track: eJPT (INE). Current focus: Metasploit and pivoting.</p>
+        <div class="about-layout">
+          <div aria-hidden="true"></div>
+          <div class="dossier-about">
+            <p>Came from data analytics and engineering. Years in logs, SQL, and systems that don’t match the ticket. Same attention, other side of the wire: how web and network targets actually fail.</p>
+            <p>Write-ups are how I think on paper — what I saw, what I tried, why it worked. Not command dumps.</p>
+            <p>Training: TryHackMe Premium, PortSwigger Web Security Academy. Track: eJPT (INE). Current focus: Metasploit and pivoting.</p>
+          </div>
+          <aside class="case-glance">
+            <div><span class="glance-k">track</span><span class="glance-v">eJPT (INE)</span></div>
+            <div><span class="glance-k">labs</span><span class="glance-v">THM Premium · PortSwigger</span></div>
+            <div><span class="glance-k">seeking</span><span class="glance-v">junior / intern · remote or BR</span></div>
+          </aside>
+        </div>
       </section>
 
       <section aria-labelledby="stack-h">
@@ -484,7 +537,7 @@
   </div>
 
   <script>
-    /* Add a write-up: one object in writeups[]. Optional: note (judgment). */
+    /* Add a write-up: one object in writeups[]. Optional: note, glance {oracle, vector, impact}. */
     window.PORTFOLIO = {
       handle: "phantonite",
       host: "garage",
@@ -516,7 +569,12 @@
           platform: "PortSwigger Web Security Academy",
           tools: "Burp Suite (Intruder)",
           description: "Exploited a blind SQL injection using the application's conditional responses, extracting the administrator's password character-by-character with Burp Intruder.",
-          note: "UNION and error-based were silent — the cookie isn't reflected. The only oracle was a Welcome back banner. On a live app I'd hunt that boolean tell in tracking cookies before smashing the login form."
+          note: "UNION and error-based were silent — the cookie isn't reflected. The only oracle was a Welcome back banner. On a live app I'd hunt that boolean tell in tracking cookies before smashing the login form.",
+          glance: {
+            oracle: "boolean · Welcome back",
+            vector: "TrackingId cookie",
+            impact: "admin password"
+          }
         }
       ]
     };
@@ -547,7 +605,19 @@
             "<p>" + esc(w.description) + "</p>" +
             (w.note ? "<p class=\"case-note\">" + esc(w.note) + "</p>" : "") +
             "<a class=\"case-go\" href=\"" + esc(w.url) + "\" target=\"_blank\" rel=\"noopener\">Read write-up</a>" +
-          "</div>";
+          "</div>" +
+          (function glanceHtml() {
+            const g = w.glance || {};
+            const rows = [
+              ["oracle", g.oracle],
+              ["vector", g.vector],
+              ["impact", g.impact]
+            ].filter(function (r) { return r[1]; });
+            if (!rows.length) return "";
+            return "<aside class=\"case-glance\">" + rows.map(function (r) {
+              return "<div><span class=\"glance-k\">" + esc(r[0]) + "</span><span class=\"glance-v\">" + esc(r[1]) + "</span></div>";
+            }).join("") + "</aside>";
+          })();
         root.appendChild(art);
       });
     })();
