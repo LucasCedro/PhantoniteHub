@@ -375,7 +375,7 @@
       ["writeups", "published evidence"],
       ["cat README", "about (prose)"],
       ["open <id>", "open a write-up"],
-      ["status", "cert track"],
+      ["status", "cert"],
       ["stack", "tools"],
       ["contact", "links"],
       ["tamago run", "open bitmite"],
